@@ -1,0 +1,3 @@
+# Copy this file to oauth.properties and fill in your own Google Cloud OAuth client.
+# Create it as: TVs and Limited Input devices.
+clientId=YOUR_CLIENT_ID.apps.googleusercontent.com

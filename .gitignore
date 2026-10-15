@@ -1,0 +1,25 @@
+# Android / Gradle build output
+.gradle/
+.kotlin/
+**/build/
+local.properties
+
+# Local credentials and updater configuration
+oauth.properties
+update.properties
+*.jks
+*.keystore
+*.p12
+*.pem
+
+# Generated APKs and release artifacts
+releases/
+*.apk
+*.aab
+
+# IDE / OS files
+.idea/
+*.iml
+.DS_Store
+Thumbs.db
+
