@@ -49,6 +49,7 @@ class MainActivity:Activity(){
     private val dashcamThumbs=android.util.LruCache<String,Bitmap>(40)
     private val dashcamThumbViews=ConcurrentHashMap<String,ImageView>()
     private val dashcamThumbInFlight=ConcurrentHashMap.newKeySet<String>()
+    private val dashcamThumbnailDays=linkedSetOf<String>()
     private val cancelled=AtomicBoolean(false)
     private var vehicleAuthCancel:AtomicBoolean?=null
     private var vehicleAuthDialog:AlertDialog?=null
@@ -86,6 +87,7 @@ class MainActivity:Activity(){
     private var dashcamKind="상시"
     private var dashcamVisibleLimit=50
     private var dashcamLoading=false
+    private var firstDashcamIntro=true
     private val dashcamMonth=java.util.Calendar.getInstance().apply{set(java.util.Calendar.DAY_OF_MONTH,1)}
     private val authorizationRequestCode=74
     private val bg=Color.rgb(10,12,15)
@@ -99,7 +101,7 @@ class MainActivity:Activity(){
     private fun caption(value:String){subtitle.text=value;subtitle.visibility=if(value.isBlank())View.GONE else View.VISIBLE}
     private fun carLayout()=packageManager.hasSystemFeature("android.hardware.type.automotive")||(resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE&&resources.configuration.screenWidthDp>=600)
     private fun button(s:String,click:()->Unit)=Button(this).apply{text=s;isAllCaps=false;textSize=if(carLayout())18f else 13f;setTextColor(Color.rgb(226,237,251));setPadding(dp(if(carLayout())20 else 13),0,dp(if(carLayout())20 else 13),0);minHeight=dp(if(carLayout())54 else 42);minimumWidth=0;minWidth=0;background=panel(surfaceRaised);setOnClickListener{if(!busy)click()}}
-    override fun onCreate(b:Bundle?){super.onCreate(b);window.statusBarColor=bg;window.navigationBarColor=bg;layout();restoreSavedStorage();if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),90);showDashcam(false)}
+    override fun onCreate(b:Bundle?){super.onCreate(b);window.statusBarColor=bg;window.navigationBarColor=bg;layout();restoreSavedStorage();if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),90);showDashcam(true)}
     private fun layout(){
         val root=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(16),dp(10),dp(16),dp(8));setBackgroundColor(bg)}
         root.setOnApplyWindowInsetsListener { view,insets -> view.setPadding(dp(16)+insets.systemWindowInsetLeft,dp(10)+insets.systemWindowInsetTop,dp(16)+insets.systemWindowInsetRight,dp(8)+insets.systemWindowInsetBottom);insets }
@@ -170,6 +172,7 @@ class MainActivity:Activity(){
     }
     private fun showDashcam(loadFromVehicle:Boolean=false){
         mode="dashcam";title.text="대시캠";caption("");actions.removeAllViews();body.removeAllViews()
+        if(loadFromVehicle){dashcamThumbnailDays.clear();dashcamThumbViews.clear()}
         loadDashcamCache()
         dashcamLoading=loadFromVehicle
         if(dashcamDay==null)dashcamDay=SimpleDateFormat("yyyy-MM-dd",Locale.KOREA).format(Date())
@@ -218,7 +221,14 @@ class MainActivity:Activity(){
                 }
                 val items=merged.distinctBy{"${it.second.type}/${it.second.id}/${it.second.name}"}.sortedByDescending{dashcamTime(it.second.dateTime,it.second.name)}
                 dashcamItems=items;saveDashcamCache()
-                runOnUiThread{dashcamLoading=false;renderDashcam(items);val monthCount=items.count{dashcamTime(it.second.dateTime,it.second.name) in targetStart until targetEnd};state.text="${dashcamMonth.get(java.util.Calendar.MONTH)+1}월 ${monthCount}개 · 누적 ${items.size}개 · 캐시 저장됨"}
+                runOnUiThread{
+                    dashcamLoading=false
+                    selectDashcamDayAfterLoad(items,targetStart,targetEnd)
+                    firstDashcamIntro=false
+                    renderDashcam(items)
+                    val monthCount=items.count{dashcamTime(it.second.dateTime,it.second.name) in targetStart until targetEnd}
+                    state.text="${dashcamMonth.get(java.util.Calendar.MONTH)+1}월 ${monthCount}개 · 누적 ${items.size}개 · 캐시 저장됨"
+                }
                 }
             }catch(e:Exception){runOnUiThread{dashcamLoading=false;renderDashcam(dashcamItems)};throw e}
         }
@@ -235,6 +245,7 @@ class MainActivity:Activity(){
         actions.addView(button("내역 새로고침"){showDashcam(true)},LinearLayout.LayoutParams(-2,dp(if(carLayout())56 else 42)).apply{rightMargin=dp(8)})
         actions.addView(button("전체 다시 읽기"){confirmDashcamCacheReset()},LinearLayout.LayoutParams(-2,dp(if(carLayout())56 else 42)).apply{rightMargin=dp(8)})
         actions.addView(button("앱 업데이트"){checkAppUpdate()},LinearLayout.LayoutParams(-2,dp(if(carLayout())56 else 42)))
+        if(firstDashcamIntro)body.addView(dashcamIntro(),LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(10)})
         val landscape=resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE
         val holder=LinearLayout(this).apply{orientation=if(landscape)LinearLayout.HORIZONTAL else LinearLayout.VERTICAL}
         val calendarPane=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(8),dp(12),dp(18),dp(10))}
@@ -245,6 +256,30 @@ class MainActivity:Activity(){
         else{holder.addView(calendarPane);holder.addView(recordsPane)}
         body.addView(holder,LinearLayout.LayoutParams(-1,if(landscape&&bodyScroll.height>0)bodyScroll.height else -2))
         if(landscape)bodyScroll.post{holder.layoutParams=holder.layoutParams.apply{height=bodyScroll.height};bodyScroll.scrollTo(0,0)}
+    }
+    private fun dashcamIntro():View{
+        val glow=GradientDrawable(GradientDrawable.Orientation.TL_BR,intArrayOf(Color.rgb(25,86,151),Color.rgb(36,181,220),Color.rgb(104,82,210))).apply{cornerRadius=dp(22).toFloat()}
+        return LinearLayout(this).apply{
+            orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(dp(if(carLayout())26 else 18),dp(if(carLayout())20 else 16),dp(if(carLayout())26 else 18),dp(if(carLayout())20 else 16));background=glow
+            addView(text("◉",if(carLayout())42f else 32f,Color.WHITE).apply{gravity=Gravity.CENTER},LinearLayout.LayoutParams(dp(if(carLayout())64 else 52),dp(if(carLayout())64 else 52)).apply{rightMargin=dp(16)})
+            val copy=LinearLayout(this@MainActivity).apply{orientation=LinearLayout.VERTICAL}
+            copy.addView(text("P4 DASHCAM",if(carLayout())24f else 19f,Color.WHITE).apply{setTypeface(null,Typeface.BOLD);letterSpacing=.08f})
+            copy.addView(text(if(dashcamLoading)"차량의 오늘 기록과 미리보기를 준비하고 있습니다" else "날짜를 선택하면 해당 기록을 바로 확인할 수 있습니다",if(carLayout())15f else 12f,Color.argb(225,255,255,255)).apply{setPadding(0,dp(5),0,0);maxLines=2})
+            addView(copy,LinearLayout.LayoutParams(0,-2,1f))
+            addView(ProgressBar(this@MainActivity).apply{isIndeterminate=true},LinearLayout.LayoutParams(dp(28),dp(28)))
+        }
+    }
+    private fun selectDashcamDayAfterLoad(items:List<Pair<DashcamApi.Category,DashcamApi.Media>>,start:Long,end:Long){
+        val today=SimpleDateFormat("yyyy-MM-dd",Locale.KOREA).format(Date())
+        val monthItems=items.filter{dashcamTime(it.second.dateTime,it.second.name) in start until end}
+        val todayHasItems=monthItems.any{dashcamDayKey(it.second)==today}
+        val selected=when{
+            todayHasItems->today
+            monthItems.isNotEmpty()->dashcamDayKey(monthItems.maxByOrNull{dashcamTime(it.second.dateTime,it.second.name)}!!.second)
+            items.isNotEmpty()->dashcamDayKey(items.first().second)
+            else->today
+        }
+        if(selected.isNotBlank())dashcamDay=selected
     }
     private fun renderDashcamMonth(host:LinearLayout){
         val header=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL}
@@ -297,7 +332,7 @@ class MainActivity:Activity(){
         val visible=allVisible.take(dashcamVisibleLimit)
         val rows=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL}
         visible.forEach{(category,media)->dashcamRecordRow(rows,category,media)}
-        loadDashcamThumbnails(visible.map{it.second})
+        if(dashcamThumbnailDays.add(day))loadDashcamThumbnails(visible.map{it.second})
         if(visible.isEmpty())rows.addView(text("$dashcamKind 기록이 없습니다.",dvrText(14f),muted).apply{setPadding(dp(4),dp(14),0,0)})
         if(visible.size<allVisible.size)rows.addView(button("더 보기 · ${visible.size}/${allVisible.size}"){dashcamVisibleLimit+=50;renderDashcam(dashcamItems)},LinearLayout.LayoutParams(-1,dp(if(carLayout())58 else 46)).apply{topMargin=dp(4);bottomMargin=dp(10)})
         if(independentScroll)host.addView(ScrollView(this).apply{addView(rows);isFillViewport=false},LinearLayout.LayoutParams(-1,0,1f)) else host.addView(rows)
@@ -361,7 +396,7 @@ class MainActivity:Activity(){
             val file=dashcamCacheFile();val temp=File(file.parentFile,"${file.name}.tmp");temp.writeText(root.toString());if(!temp.renameTo(file)){file.writeText(root.toString());temp.delete()}
         }catch(_:Exception){}
     }
-    private fun confirmDashcamCacheReset(){AlertDialog.Builder(this).setTitle("대시캠 캐시 초기화").setMessage("저장된 목록과 썸네일을 지우고 차량에서 전체 내역을 한 번 다시 읽습니다.").setNegativeButton("취소",null).setPositiveButton("전체 다시 읽기"){_,_->dashcamCacheFile().delete();File(filesDir,"dvr_thumbs").listFiles()?.forEach{it.delete()};dashcamThumbs.evictAll();dashcamItems=emptyList();dashcamCategories=emptyList();dashcamOffsets.clear();dashcamComplete.clear();showDashcam(true)}.show()}
+    private fun confirmDashcamCacheReset(){AlertDialog.Builder(this).setTitle("대시캠 캐시 초기화").setMessage("저장된 목록과 썸네일을 지우고 차량에서 전체 내역을 한 번 다시 읽습니다.").setNegativeButton("취소",null).setPositiveButton("전체 다시 읽기"){_,_->dashcamCacheFile().delete();File(filesDir,"dvr_thumbs").listFiles()?.forEach{it.delete()};dashcamThumbs.evictAll();dashcamThumbnailDays.clear();dashcamItems=emptyList();dashcamCategories=emptyList();dashcamOffsets.clear();dashcamComplete.clear();showDashcam(true)}.show()}
     private fun dvrText(size:Float)=if(carLayout())size*2.0f else size
     private fun dashcamGroup(category:DashcamApi.Category)=when(category.type.lowercase(Locale.ROOT)){"emergency"->"긴급";"avm","avm_emergency"->"서라운드";"photo"->"사진";else->"상시"}
     private fun dashcamActions(category:DashcamApi.Category,media:DashcamApi.Media){
