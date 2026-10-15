@@ -81,6 +81,7 @@ class MainActivity:Activity(){
     private val dashcamComplete=linkedSetOf<String>()
     private var dashcamDay:String?=null
     private var dashcamKind="상시"
+    private var dashcamVisibleLimit=50
     private var dashcamLoading=false
     private val dashcamMonth=java.util.Calendar.getInstance().apply{set(java.util.Calendar.DAY_OF_MONTH,1)}
     private val authorizationRequestCode=74
@@ -95,7 +96,7 @@ class MainActivity:Activity(){
     private fun caption(value:String){subtitle.text=value;subtitle.visibility=if(value.isBlank())View.GONE else View.VISIBLE}
     private fun carLayout()=packageManager.hasSystemFeature("android.hardware.type.automotive")||(resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE&&resources.configuration.screenWidthDp>=600)
     private fun button(s:String,click:()->Unit)=Button(this).apply{text=s;isAllCaps=false;textSize=if(carLayout())18f else 13f;setTextColor(Color.rgb(226,237,251));setPadding(dp(if(carLayout())20 else 13),0,dp(if(carLayout())20 else 13),0);minHeight=dp(if(carLayout())54 else 42);minimumWidth=0;minWidth=0;background=panel(surfaceRaised);setOnClickListener{if(!busy)click()}}
-    override fun onCreate(b:Bundle?){super.onCreate(b);window.statusBarColor=bg;window.navigationBarColor=bg;layout();restoreSavedStorage();if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),90);showDashcam(false);handler.postDelayed({if(!isFinishing&&!busy)checkAppUpdate(false)},1500)}
+    override fun onCreate(b:Bundle?){super.onCreate(b);window.statusBarColor=bg;window.navigationBarColor=bg;layout();restoreSavedStorage();if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),90);showDashcam(false)}
     private fun layout(){
         val root=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(16),dp(10),dp(16),dp(8));setBackgroundColor(bg)}
         root.setOnApplyWindowInsetsListener { view,insets -> view.setPadding(dp(16)+insets.systemWindowInsetLeft,dp(10)+insets.systemWindowInsetTop,dp(16)+insets.systemWindowInsetRight,dp(8)+insets.systemWindowInsetBottom);insets }
@@ -244,9 +245,9 @@ class MainActivity:Activity(){
     }
     private fun renderDashcamMonth(host:LinearLayout){
         val header=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL}
-        header.addView(button("◀"){dashcamMonth.add(java.util.Calendar.MONTH,-1);dashcamDay=String.format(Locale.KOREA,"%04d-%02d-01",dashcamMonth.get(java.util.Calendar.YEAR),dashcamMonth.get(java.util.Calendar.MONTH)+1);loadDashcamMonth()},LinearLayout.LayoutParams(dp(if(carLayout())78 else 58),dp(if(carLayout())58 else 42)))
+        header.addView(button("◀"){dashcamMonth.add(java.util.Calendar.MONTH,-1);dashcamVisibleLimit=50;dashcamDay=String.format(Locale.KOREA,"%04d-%02d-01",dashcamMonth.get(java.util.Calendar.YEAR),dashcamMonth.get(java.util.Calendar.MONTH)+1);loadDashcamMonth()},LinearLayout.LayoutParams(dp(if(carLayout())78 else 58),dp(if(carLayout())58 else 42)))
         header.addView(text(String.format(Locale.KOREA,"%d년 %d월",dashcamMonth.get(java.util.Calendar.YEAR),dashcamMonth.get(java.util.Calendar.MONTH)+1),dvrText(24f)).apply{gravity=Gravity.CENTER;setTypeface(null,Typeface.BOLD)},LinearLayout.LayoutParams(0,dp(if(carLayout())70 else 56),1f))
-        header.addView(button("▶"){dashcamMonth.add(java.util.Calendar.MONTH,1);dashcamDay=String.format(Locale.KOREA,"%04d-%02d-01",dashcamMonth.get(java.util.Calendar.YEAR),dashcamMonth.get(java.util.Calendar.MONTH)+1);loadDashcamMonth()},LinearLayout.LayoutParams(dp(if(carLayout())78 else 58),dp(if(carLayout())58 else 42)))
+        header.addView(button("▶"){dashcamMonth.add(java.util.Calendar.MONTH,1);dashcamVisibleLimit=50;dashcamDay=String.format(Locale.KOREA,"%04d-%02d-01",dashcamMonth.get(java.util.Calendar.YEAR),dashcamMonth.get(java.util.Calendar.MONTH)+1);loadDashcamMonth()},LinearLayout.LayoutParams(dp(if(carLayout())78 else 58),dp(if(carLayout())58 else 42)))
         host.addView(header)
         val weekdays=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL}
         arrayOf("일","월","화","수","목","금","토").forEachIndexed{i,label->weekdays.addView(text(label,dvrText(14f),when(i){0->Color.rgb(255,120,120);6->Color.rgb(110,175,255);else->muted}).apply{gravity=Gravity.CENTER;setTypeface(null,Typeface.BOLD)},LinearLayout.LayoutParams(0,dp(if(carLayout())48 else 38),1f))}
@@ -276,7 +277,7 @@ class MainActivity:Activity(){
             orientation=LinearLayout.VERTICAL;gravity=Gravity.TOP or Gravity.CENTER_HORIZONTAL;setPadding(dp(2),dp(4),dp(2),dp(2));background=panel(if(selected)Color.rgb(25,91,145) else if(records.isNotEmpty())Color.rgb(25,31,38) else Color.TRANSPARENT)
             addView(text(day.toString(),dvrText(15f),if(selected)Color.WHITE else if(records.isNotEmpty())Color.rgb(235,242,250) else muted).apply{gravity=Gravity.CENTER;setTypeface(null,Typeface.BOLD)})
             if(records.isNotEmpty())addView(text(listOf("상시","긴급","서라운드","사진").mapNotNull{kind->counts[kind]?.takeIf{it>0}?.let{"$kind $it"}}.joinToString("\n"),dvrText(9f),if(selected)Color.WHITE else muted).apply{gravity=Gravity.CENTER;maxLines=4})
-            isClickable=true;setOnClickListener{dashcamDay=key;val present=listOf("상시","긴급","서라운드","사진").firstOrNull{counts.getOrDefault(it,0)>0};if(counts.getOrDefault(dashcamKind,0)==0&&present!=null)dashcamKind=present;renderDashcam(dashcamItems)}
+            isClickable=true;setOnClickListener{dashcamDay=key;dashcamVisibleLimit=50;val present=listOf("상시","긴급","서라운드","사진").firstOrNull{counts.getOrDefault(it,0)>0};if(counts.getOrDefault(dashcamKind,0)==0&&present!=null)dashcamKind=present;renderDashcam(dashcamItems)}
         }
     }
     private fun renderDashcamRecords(host:LinearLayout,independentScroll:Boolean){
@@ -287,12 +288,14 @@ class MainActivity:Activity(){
         host.addView(text("$day · ${dayItems.size}개",dvrText(22f)).apply{setTypeface(null,Typeface.BOLD);setPadding(dp(2),0,0,dp(10))})
         val counts=dayItems.groupingBy{dashcamGroup(it.first)}.eachCount()
         val tabs=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL}
-        listOf("상시","긴급","서라운드","사진").forEach{kind->tabs.addView(button("${if(kind==dashcamKind)"● " else ""}$kind (${counts.getOrDefault(kind,0)})"){dashcamKind=kind;renderDashcam(dashcamItems)},LinearLayout.LayoutParams(0,dp(42),1f).apply{rightMargin=dp(3)})}
+        listOf("상시","긴급","서라운드","사진").forEach{kind->tabs.addView(button("${if(kind==dashcamKind)"● " else ""}$kind (${counts.getOrDefault(kind,0)})"){dashcamKind=kind;dashcamVisibleLimit=50;renderDashcam(dashcamItems)},LinearLayout.LayoutParams(0,dp(42),1f).apply{rightMargin=dp(3)})}
         host.addView(tabs,LinearLayout.LayoutParams(-1,dp(46)).apply{bottomMargin=dp(8)})
-        val visible=dayItems.filter{dashcamGroup(it.first)==dashcamKind}.sortedByDescending{dashcamTime(it.second.dateTime,it.second.name)}
+        val allVisible=dayItems.filter{dashcamGroup(it.first)==dashcamKind}.sortedByDescending{dashcamTime(it.second.dateTime,it.second.name)}
+        val visible=allVisible.take(dashcamVisibleLimit)
         val rows=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL}
         visible.forEach{(category,media)->dashcamRecordRow(rows,category,media)}
         if(visible.isEmpty())rows.addView(text("$dashcamKind 기록이 없습니다.",dvrText(14f),muted).apply{setPadding(dp(4),dp(14),0,0)})
+        if(visible.size<allVisible.size)rows.addView(button("더 보기 · ${visible.size}/${allVisible.size}"){dashcamVisibleLimit+=50;renderDashcam(dashcamItems)},LinearLayout.LayoutParams(-1,dp(if(carLayout())58 else 46)).apply{topMargin=dp(4);bottomMargin=dp(10)})
         if(independentScroll)host.addView(ScrollView(this).apply{addView(rows);isFillViewport=false},LinearLayout.LayoutParams(-1,0,1f)) else host.addView(rows)
     }
     private fun dashcamRecordRow(host:LinearLayout,category:DashcamApi.Category,media:DashcamApi.Media){
