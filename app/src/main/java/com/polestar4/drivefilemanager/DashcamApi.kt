@@ -21,6 +21,8 @@ class DashcamApi {
         private const val ENTER_BODY="{\"app\":\"gallery\",\"recording\":\"enter-file-list\"}"
         private const val NORMAL_BODY="{\"app\":\"gallery\",\"recording\":\"normal\"}"
     }
+    private val modeLock=Any()
+    private class DvrHttpException(val code:Int,val detail:String):IOException("DVR HTTP $code: ${detail.take(200)}")
 
     private fun connection(url:String)=((URL(url).openConnection()) as HttpURLConnection).apply {
         connectTimeout=8_000
@@ -32,7 +34,7 @@ class DashcamApi {
     private fun response(c:HttpURLConnection):String {
         val code=c.responseCode
         val body=(if(code in 200..299)c.inputStream else c.errorStream)?.bufferedReader()?.use{it.readText()}.orEmpty()
-        if(code !in 200..299)throw IOException("DVR HTTP $code: ${body.take(200)}")
+        if(code !in 200..299)throw DvrHttpException(code,body)
         return body
     }
 
@@ -66,8 +68,26 @@ class DashcamApi {
 
     fun leaveFileList(){try{postMode(NORMAL_BODY)}catch(_:Exception){}}
 
+    fun <T> withFileList(block:()->T):T=synchronized(modeLock){
+        enterFileList()
+        try{block()}finally{leaveFileList()}
+    }
+
+    private fun fileListGet(path:String):String{
+        var last:Exception?=null
+        repeat(3){attempt->
+            try{return get(path)}catch(e:DvrHttpException){
+                last=e
+                if(e.code!=403&&!e.detail.contains("NO_FILE_LIST_MODE",true)&&!e.detail.contains("error\":3"))throw e
+                enterFileList()
+                if(attempt<2)Thread.sleep(300)
+            }
+        }
+        throw last?:IOException("DVR file-list request failed")
+    }
+
     fun categories():List<Category>{
-        val a=array(JSONObject(get(MEDIA_DIRS)))?:return emptyList()
+        val a=array(JSONObject(fileListGet(MEDIA_DIRS)))?:return emptyList()
         return (0 until a.length()).mapNotNull{i->a.optJSONObject(i)}.mapNotNull{j->
             val type=j.optString("mediaType",j.optString("type"))
             if(type.isBlank())return@mapNotNull null
@@ -87,7 +107,7 @@ class DashcamApi {
 
     fun list(category:Category,start:Int=0,count:Int=200):List<Media>{
         val query="/filelist?app=gallery&type=${enc(category.type)}&startIndex=$start&count=$count&sort=newest-first&infoLevel=2"
-        val a=array(JSONObject(get(query)))?:return emptyList()
+        val a=array(JSONObject(fileListGet(query)))?:return emptyList()
         return (0 until a.length()).mapNotNull{i->a.optJSONObject(i)}.mapNotNull{j->
             val name=j.optString("name")
             if(name.isBlank()||name=="."||name==".."||name.contains('/')||name.contains('\\'))return@mapNotNull null
@@ -117,34 +137,32 @@ class DashcamApi {
     }
 
     fun download(media:Media,out:OutputStream,progress:(Long)->Unit={}){
-        val c=connection(media.url)
-        try {
-            if(c.responseCode !in 200..299)throw IOException("DVR HTTP ${c.responseCode}")
-            c.inputStream.use{input->
-                val buffer=ByteArray(256*1024)
-                var total=0L
-                while(true){val n=input.read(buffer);if(n<0)break;out.write(buffer,0,n);total+=n;progress(total)}
-            }
-        } finally { c.disconnect() }
+        repeat(3){attempt->
+            val c=connection(media.url)
+            try {
+                val code=c.responseCode
+                if(code==403){if(attempt<2){enterFileList();Thread.sleep(300);return@repeat};throw IOException("DVR HTTP 403: NO_FILE_LIST_MODE")}
+                if(code !in 200..299)throw IOException("DVR HTTP $code")
+                c.inputStream.use{input->val buffer=ByteArray(256*1024);var total=0L;while(true){val n=input.read(buffer);if(n<0)break;out.write(buffer,0,n);total+=n;progress(total)}}
+                return
+            } finally { c.disconnect() }
+        }
     }
 
-    @Synchronized fun thumbnail(media:Media):ByteArray?{
+    fun thumbnail(media:Media):ByteArray?=synchronized(modeLock){
         val url="$BASE/thumbnail?app=gallery&mediaType=${enc(media.type)}&id=${enc(media.id)}&time=${media.dateTime}"
-        var entered=false
-        try{
+        try{enterFileList()
             repeat(3){attempt->
                 val c=connection(url).apply{connectTimeout=6_000;readTimeout=10_000}
                 try{
                     val code=c.responseCode
                     if(code==200){val bytes=c.inputStream.use{it.readBytes()};if(bytes.isNotEmpty())return bytes}
-                    if((code==403||code==409)&&!entered){c.disconnect();enterFileList();entered=true}
-                }catch(_:Exception){if(!entered)try{enterFileList();entered=true}catch(_:Exception){}}
+                    if(code==403||code==409){c.disconnect();enterFileList()}
+                }catch(_:Exception){try{enterFileList()}catch(_:Exception){}}
                 finally{c.disconnect()}
                 if(attempt<2)Thread.sleep(250)
             }
-        }finally{
-            if(entered)leaveFileList()
-        }
+        }finally{leaveFileList()}
         return null
     }
 

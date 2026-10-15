@@ -176,9 +176,8 @@ class MainActivity:Activity(){
         val targetStart=java.util.Calendar.getInstance().apply{timeInMillis=dashcamMonth.timeInMillis;set(java.util.Calendar.DAY_OF_MONTH,1);set(java.util.Calendar.HOUR_OF_DAY,0);set(java.util.Calendar.MINUTE,0);set(java.util.Calendar.SECOND,0);set(java.util.Calendar.MILLISECOND,0)}.timeInMillis
         val targetEnd=java.util.Calendar.getInstance().apply{timeInMillis=targetStart;add(java.util.Calendar.MONTH,1)}.timeInMillis
         task("${dashcamMonth.get(java.util.Calendar.MONTH)+1}월 내역 읽는 중"){
-            var entered=false
             try{
-                dashcamApi.enterFileList();entered=true
+                dashcamApi.withFileList {
                 if(dashcamCategories.isEmpty())dashcamCategories=dashcamApi.categories()
                 val merged=dashcamItems.toMutableList()
                 dashcamCategories.forEach{category->
@@ -215,8 +214,8 @@ class MainActivity:Activity(){
                 val items=merged.distinctBy{"${it.second.type}/${it.second.id}/${it.second.name}"}.sortedByDescending{dashcamTime(it.second.dateTime,it.second.name)}
                 dashcamItems=items;saveDashcamCache()
                 runOnUiThread{dashcamLoading=false;renderDashcam(items);val monthCount=items.count{dashcamTime(it.second.dateTime,it.second.name) in targetStart until targetEnd};state.text="${dashcamMonth.get(java.util.Calendar.MONTH)+1}월 ${monthCount}개 · 누적 ${items.size}개 · 캐시 저장됨"}
+                }
             }catch(e:Exception){runOnUiThread{dashcamLoading=false;renderDashcam(dashcamItems)};throw e}
-            finally{if(entered)dashcamApi.leaveFileList()}
         }
     }
     private fun renderDashcam(items:List<Pair<DashcamApi.Category,DashcamApi.Media>>){
@@ -354,8 +353,7 @@ class MainActivity:Activity(){
             val dir=File(getExternalFilesDir(null),"Downloads").apply{mkdirs()}
             val safe=media.name.replace(Regex("[^A-Za-z0-9가-힣._-]"),"_")
             val file=File(dir,safe)
-            var entered=false
-            try{dashcamApi.enterFileList();entered=true;file.outputStream().use{out->dashcamApi.download(media,out){n->update("${bytes(n)} 받는 중 · ${media.name}")}}}finally{if(entered)dashcamApi.leaveFileList()}
+            dashcamApi.withFileList{file.outputStream().use{out->dashcamApi.download(media,out){n->update("${bytes(n)} 받는 중 · ${media.name}")}}}
             val uri=FileProvider.getUriForFile(this,"$packageName.files",file)
             runOnUiThread{when{open->openDashcamFile(file,media);upload->uploadFiles(listOf(uri));else->state.text="대시캠 저장 완료: ${media.name}"}}
         }
@@ -657,7 +655,7 @@ class MainActivity:Activity(){
         when(r){70->{val u=d.data?:return;try{contentResolver.takePersistableUriPermission(u,Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)}catch(_:SecurityException){};val dir=DocumentFile.fromTreeUri(this,u)?:return;storagePrefs().edit().putString("tree_uri",u.toString()).apply();localPath.clear();localPath.add(dir);if(resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE&&resources.configuration.screenWidthDp>=700)showDualPane()else showLocal()}
             71,72->{val uris=d.clipData?.let{clip->(0 until clip.itemCount).map{clip.getItemAt(it).uri}}?:listOfNotNull(d.data);if(r==72||mode=="drive"||uris.size>1)uploadFiles(uris)else uris.firstOrNull()?.let{localActions(it,"선택한 파일",contentResolver.getType(it)?:"application/octet-stream")}}
             73->{val f=pendingDownload?:return;val uri=d.data?:return;pendingDownload=null;task("파일 저장 중"){(contentResolver.openOutputStream(uri)?:throw java.io.IOException("저장 파일을 열 수 없습니다.")).use{api.download(f.id,it){n->update("${bytes(n)} 저장 중")}};update("저장 완료: ${f.name}")}}
-            75->{val f=pendingDashcam?:return;val uri=d.data?:return;pendingDashcam=null;task("대시캠 저장 중"){var entered=false;try{dashcamApi.enterFileList();entered=true;(contentResolver.openOutputStream(uri)?:throw java.io.IOException("저장 파일을 열 수 없습니다.")).use{out->dashcamApi.download(f,out){n->update("${bytes(n)} 저장 중 · ${f.name}")}}}finally{if(entered)dashcamApi.leaveFileList()};update("대시캠 저장 완료: ${f.name}")}}
+            75->{val f=pendingDashcam?:return;val uri=d.data?:return;pendingDashcam=null;task("대시캠 저장 중"){dashcamApi.withFileList{(contentResolver.openOutputStream(uri)?:throw java.io.IOException("저장 파일을 열 수 없습니다.")).use{out->dashcamApi.download(f,out){n->update("${bytes(n)} 저장 중 · ${f.name}")}}};update("대시캠 저장 완료: ${f.name}")}}
         }
     }
     override fun onDestroy(){cancelled.set(true);vehicleAuthCancel?.set(true);vehicleAuthDialog?.dismiss();handler.removeCallbacks(queueRefresh);worker.shutdownNow();thumbWorker.shutdownNow();dashcamThumbs.evictAll();super.onDestroy()}
