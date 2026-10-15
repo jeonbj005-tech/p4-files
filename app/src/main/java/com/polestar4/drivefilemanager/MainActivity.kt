@@ -613,15 +613,32 @@ class MainActivity:Activity(){
             val info=appUpdater.check(saved)
             runOnUiThread{
                 if(info.versionCode<=BuildConfig.VERSION_CODE)AlertDialog.Builder(this).setTitle("최신 버전입니다").setMessage("설치됨 v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})").setPositiveButton("확인",null).setNeutralButton("주소 변경"){_,_->updatePrefs().edit().remove("manifest_url").apply();checkAppUpdate()}.show()
-                else AlertDialog.Builder(this).setTitle("P4 Files v${info.versionName} 업데이트").setMessage("설치됨 v${BuildConfig.VERSION_NAME}\n새 버전 v${info.versionName}\n\n${info.notes}").setNegativeButton("나중에",null).setNeutralButton("주소 변경"){_,_->updatePrefs().edit().remove("manifest_url").apply();checkAppUpdate()}.setPositiveButton("다운로드 및 설치"){_,_->downloadAppUpdate(info)}.show()
+                else AlertDialog.Builder(this).setTitle("P4 Files v${info.versionName} 업데이트").setMessage("설치됨 v${BuildConfig.VERSION_NAME}\n새 버전 v${info.versionName}\n\n${info.notes}").setNegativeButton("나중에",null).setNeutralButton("주소 변경"){_,_->updatePrefs().edit().remove("manifest_url").apply();checkAppUpdate()}.setPositiveButton("Download에 저장"){_,_->downloadAppUpdate(info)}.show()
             }
         }
     }
-    private fun downloadAppUpdate(info:UpdateInfo){task("업데이트 다운로드 중"){val file=appUpdater.download(info){done,total->update(if(total>0)"업데이트 ${done*100/total}%" else "업데이트 ${bytes(done)}")};val uri=FileProvider.getUriForFile(this,"$packageName.files",file);runOnUiThread{installApk(uri)}}}
+    private fun downloadAppUpdate(info:UpdateInfo){task("업데이트 다운로드 중"){val file=appUpdater.download(info){done,total->update(if(total>0)"업데이트 ${done*100/total}%" else "업데이트 ${bytes(done)}")};val name="P4-Files-v${info.versionName}.apk";val uri=publishToPublicDownloads(file,name);runOnUiThread{showDownloadedUpdate(uri,name)}}}
+    private fun publishToPublicDownloads(source:File,name:String):Uri{
+        if(Build.VERSION.SDK_INT>=29){
+            val values=android.content.ContentValues().apply{put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME,name);put(android.provider.MediaStore.MediaColumns.MIME_TYPE,"application/vnd.android.package-archive");put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH,android.os.Environment.DIRECTORY_DOWNLOADS);put(android.provider.MediaStore.MediaColumns.IS_PENDING,1)}
+            val uri=contentResolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI,values)?:throw java.io.IOException("공용 Download 파일을 만들 수 없습니다")
+            try{(contentResolver.openOutputStream(uri)?:throw java.io.IOException("공용 Download 파일을 열 수 없습니다")).use{out->source.inputStream().use{it.copyTo(out)}};values.clear();values.put(android.provider.MediaStore.MediaColumns.IS_PENDING,0);contentResolver.update(uri,values,null,null);return uri}catch(e:Exception){contentResolver.delete(uri,null,null);throw e}
+        }
+        throw java.io.IOException("이 Android 버전에서는 공용 Download 저장을 지원하지 않습니다")
+    }
+    private fun showDownloadedUpdate(uri:Uri,name:String){
+        pendingInstallUri=uri;state.text="Download/$name 저장 완료"
+        AlertDialog.Builder(this).setTitle("업데이트 다운로드 완료").setMessage("공용 Download 폴더에 저장했습니다.\n\n$name\n\n차량에서는 순정 파일 앱에서 이 APK를 눌러 설치하세요.").setNegativeButton("닫기",null).setNeutralButton("설치 시도"){_,_->installApk(uri)}.setPositiveButton("순정 Download 열기"){_,_->openSystemDownloads()}.show()
+    }
+    private fun openSystemDownloads(){
+        val intents=listOf(Intent(android.app.DownloadManager.ACTION_VIEW_DOWNLOADS),Intent(Intent.ACTION_VIEW,android.provider.DocumentsContract.buildDocumentUri("com.android.externalstorage.documents","primary:Download")).setType("vnd.android.document/directory").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
+        for(intent in intents)try{startActivity(intent);return}catch(_:Exception){}
+        AlertDialog.Builder(this).setTitle("순정 파일 앱을 열 수 없음").setMessage("차량의 기본 파일 앱을 직접 열고 Download 폴더에서 P4-Files APK를 선택하세요.").setPositiveButton("확인",null).show()
+    }
     private fun installApk(uri:Uri){
         if(Build.VERSION.SDK_INT>=26&&!packageManager.canRequestPackageInstalls()){
             pendingInstallUri=uri
-            AlertDialog.Builder(this).setTitle("APK 설치 권한 필요").setMessage("P4 Files의 '알 수 없는 앱 설치'를 허용한 뒤 돌아오면 설치를 계속합니다.").setNegativeButton("취소"){_,_->pendingInstallUri=null}.setPositiveButton("설정 열기"){_,_->try{startActivity(Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,Uri.parse("package:$packageName")))}catch(e:Exception){state.text="설치 권한 설정을 열 수 없습니다: ${e.message}"}}.show();return
+            AlertDialog.Builder(this).setTitle("차량 설치 권한 제한").setMessage("P4 Files가 설치 권한 설정을 열 수 없는 차량일 수 있습니다. APK는 공용 Download 폴더에 저장되어 있으니 순정 파일 앱에서 선택하세요.").setNegativeButton("닫기",null).setNeutralButton("설정 열기"){_,_->try{startActivity(Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,Uri.parse("package:$packageName")))}catch(_:Exception){openSystemDownloads()}}.setPositiveButton("순정 Download 열기"){_,_->openSystemDownloads()}.show();return
         }
         pendingInstallUri=null
         try{startActivity(Intent(Intent.ACTION_INSTALL_PACKAGE).setData(uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION).putExtra(Intent.EXTRA_RETURN_RESULT,false).apply{clipData=android.content.ClipData.newRawUri("APK",uri)})}

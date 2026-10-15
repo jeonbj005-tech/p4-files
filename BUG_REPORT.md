@@ -58,6 +58,7 @@ APK 다운로드가 완전히 끝난 뒤 패키지 설치 화면이 실행되어
 - APK 파일을 일반 `ACTION_VIEW`가 아닌 `ACTION_INSTALL_PACKAGE`로 분기
 - `REQUEST_INSTALL_PACKAGES` 권한 선언
 - `FileProvider` URI와 읽기 권한 전달
+- 차량에서 설치 권한 설정 화면이 차단되면 APK를 공용 `Download`에 저장하고 순정 파일 앱으로 연결
 - `canRequestPackageInstalls()` 사전 확인
 - 권한이 없으면 현재 앱의 `알 수 없는 앱 설치` 설정 화면으로 안내
 - 설정에서 복귀하면 보류한 APK 설치 자동 재시도
