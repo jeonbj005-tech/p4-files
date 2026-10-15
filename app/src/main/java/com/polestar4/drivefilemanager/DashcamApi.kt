@@ -127,7 +127,7 @@ class DashcamApi {
         var start=0
         repeat(100){
             val page=list(category,start,200)
-            val unique=page.filter{seen.add("${it.type}/${it.id}/${it.name}")}
+            val unique=page.filter{seen.add("${it.type}/${it.name}")}
             result.addAll(unique)
             progress(result.size)
             if(page.size<200||unique.isEmpty())return result
@@ -149,8 +149,14 @@ class DashcamApi {
 
     private fun thumbnailRequest(media:Media):ByteArray?{
         val url="$BASE/thumbnail?app=gallery&mediaType=${enc(media.type)}&id=${enc(media.id)}&time=${media.dateTime}"
-        val c=connection(url).apply{connectTimeout=4_000;readTimeout=6_000}
-        return try{if(c.responseCode==200)c.inputStream.use{it.readBytes().takeIf(ByteArray::isNotEmpty)}else null}catch(_:Exception){null}finally{c.disconnect()}
+        repeat(2){
+            val c=connection(url).apply{connectTimeout=4_000;readTimeout=6_000}
+            try{if(c.responseCode==200){val bytes=c.inputStream.use{it.readBytes()};if(bytes.isNotEmpty())return bytes}}
+            catch(_:Exception){}
+            finally{c.disconnect()}
+            if(it==0)Thread.sleep(80)
+        }
+        return null
     }
 
     /** Fetch a screen's thumbnails in one file-list session instead of toggling DVR mode per item. */
