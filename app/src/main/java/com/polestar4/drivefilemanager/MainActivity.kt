@@ -35,6 +35,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.Executors
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 
 class MainActivity:Activity(){
@@ -46,6 +47,8 @@ class MainActivity:Activity(){
     private val worker=Executors.newSingleThreadExecutor()
     private val thumbWorker=Executors.newFixedThreadPool(3)
     private val dashcamThumbs=android.util.LruCache<String,Bitmap>(40)
+    private val dashcamThumbViews=ConcurrentHashMap<String,ImageView>()
+    private val dashcamThumbInFlight=ConcurrentHashMap.newKeySet<String>()
     private val cancelled=AtomicBoolean(false)
     private var vehicleAuthCancel:AtomicBoolean?=null
     private var vehicleAuthDialog:AlertDialog?=null
@@ -294,6 +297,7 @@ class MainActivity:Activity(){
         val visible=allVisible.take(dashcamVisibleLimit)
         val rows=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL}
         visible.forEach{(category,media)->dashcamRecordRow(rows,category,media)}
+        loadDashcamThumbnails(visible.map{it.second})
         if(visible.isEmpty())rows.addView(text("$dashcamKind 기록이 없습니다.",dvrText(14f),muted).apply{setPadding(dp(4),dp(14),0,0)})
         if(visible.size<allVisible.size)rows.addView(button("더 보기 · ${visible.size}/${allVisible.size}"){dashcamVisibleLimit+=50;renderDashcam(dashcamItems)},LinearLayout.LayoutParams(-1,dp(if(carLayout())58 else 46)).apply{topMargin=dp(4);bottomMargin=dp(10)})
         if(independentScroll)host.addView(ScrollView(this).apply{addView(rows);isFillViewport=false},LinearLayout.LayoutParams(-1,0,1f)) else host.addView(rows)
@@ -314,7 +318,26 @@ class MainActivity:Activity(){
         dashcamThumbs.get(key)?.let{view.setImageBitmap(it);return}
         val disk=File(File(filesDir,"dvr_thumbs").apply{mkdirs()},"${key.hashCode().toUInt().toString(16)}.jpg")
         if(disk.exists())BitmapFactory.decodeFile(disk.absolutePath)?.let{dashcamThumbs.put(key,it);view.setImageBitmap(it);return}
-        thumbWorker.execute{val bytes=try{dashcamApi.thumbnail(media)}catch(_:Exception){null};val bitmap=bytes?.let{BitmapFactory.decodeByteArray(it,0,it.size)};if(bitmap!=null){try{disk.writeBytes(bytes)}catch(_:Exception){};dashcamThumbs.put(key,bitmap);runOnUiThread{if(!isFinishing)view.setImageBitmap(bitmap)}}}
+        dashcamThumbViews[key]=view
+    }
+    private fun loadDashcamThumbnails(media:List<DashcamApi.Media>){
+        val missing=media.filter{m->
+            val key="${m.type}:${m.id}:${m.dateTime}"
+            dashcamThumbs.get(key)==null && dashcamThumbInFlight.add(key)
+        }
+        if(missing.isEmpty())return
+        thumbWorker.execute{
+            try{
+                dashcamApi.thumbnails(missing).forEach{(media,bytes)->
+                    val key="${media.type}:${media.id}:${media.dateTime}"
+                    val bitmap=BitmapFactory.decodeByteArray(bytes,0,bytes.size)?:return@forEach
+                    val disk=File(File(filesDir,"dvr_thumbs").apply{mkdirs()},"${key.hashCode().toUInt().toString(16)}.jpg")
+                    try{disk.writeBytes(bytes)}catch(_:Exception){}
+                    dashcamThumbs.put(key,bitmap)
+                    runOnUiThread{if(!isFinishing)dashcamThumbViews[key]?.setImageBitmap(bitmap)}
+                }
+            }finally{missing.forEach{m->dashcamThumbInFlight.remove("${m.type}:${m.id}:${m.dateTime}")}}
+        }
     }
     private fun dashcamCacheFile()=File(filesDir,"dvr_cache.json")
     private fun loadDashcamCache(){

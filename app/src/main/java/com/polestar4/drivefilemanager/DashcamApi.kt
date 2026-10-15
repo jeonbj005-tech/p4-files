@@ -147,11 +147,18 @@ class DashcamApi {
         } finally { c.disconnect() }
     }
 
-    /** Never changes DVR mode: repeated enter/leave cycles split normal recordings into tiny clips. */
-    fun thumbnail(media:Media):ByteArray?{
+    private fun thumbnailRequest(media:Media):ByteArray?{
         val url="$BASE/thumbnail?app=gallery&mediaType=${enc(media.type)}&id=${enc(media.id)}&time=${media.dateTime}"
         val c=connection(url).apply{connectTimeout=4_000;readTimeout=6_000}
         return try{if(c.responseCode==200)c.inputStream.use{it.readBytes().takeIf(ByteArray::isNotEmpty)}else null}catch(_:Exception){null}finally{c.disconnect()}
+    }
+
+    /** Fetch a screen's thumbnails in one file-list session instead of toggling DVR mode per item. */
+    fun thumbnails(media:List<Media>):List<Pair<Media,ByteArray>> = synchronized(modeLock){
+        if(media.isEmpty())return emptyList()
+        val changed=try{enterFileList()}catch(_:Exception){false}
+        try{media.mapNotNull{m->thumbnailRequest(m)?.let{m to it}}}
+        finally{if(changed)leaveFileList()}
     }
 
     private fun enc(value:String)=URLEncoder.encode(value,"UTF-8").replace("+","%20")
