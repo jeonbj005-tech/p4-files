@@ -15,7 +15,7 @@ fun quotedBuildValue(name: String): String =
 
 android {
     namespace = "com.polestar4.drivefilemanager"; compileSdk = 35
-    defaultConfig { applicationId = "com.polestar4.drivefilemanager"; minSdk = 26; targetSdk = 35; versionCode = 39; versionName = "1.29"
+    defaultConfig { applicationId = "com.polestar4.drivefilemanager"; minSdk = 26; targetSdk = 35; versionCode = 40; versionName = "1.30"
         buildConfigField("String", "OAUTH_CLIENT_ID", "\"\"")
         buildConfigField("String", "OAUTH_CLIENT_SECRET", "\"\"")
         buildConfigField("String", "TV_OAUTH_CLIENT_ID", quotedBuildValue("clientId"))

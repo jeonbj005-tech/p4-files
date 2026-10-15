@@ -92,6 +92,7 @@ class MainActivity:Activity(){
     private fun dp(x:Int)=(x*resources.displayMetrics.density).toInt()
     private fun text(s:String,size:Float=16f,color:Int=Color.rgb(244,246,248))=TextView(this).apply{text=s;textSize=size;setTextColor(color);fontFeatureSettings="kern"}
     private fun panel(color:Int)=GradientDrawable().apply{setColor(color);cornerRadius=dp(16).toFloat()}
+    private fun caption(value:String){subtitle.text=value;subtitle.visibility=if(value.isBlank())View.GONE else View.VISIBLE}
     private fun carLayout()=packageManager.hasSystemFeature("android.hardware.type.automotive")||(resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE&&resources.configuration.screenWidthDp>=600)
     private fun button(s:String,click:()->Unit)=Button(this).apply{text=s;isAllCaps=false;textSize=if(carLayout())18f else 13f;setTextColor(Color.rgb(226,237,251));setPadding(dp(if(carLayout())20 else 13),0,dp(if(carLayout())20 else 13),0);minHeight=dp(if(carLayout())54 else 42);minimumWidth=0;minWidth=0;background=panel(surfaceRaised);setOnClickListener{if(!busy)click()}}
     override fun onCreate(b:Bundle?){super.onCreate(b);window.statusBarColor=bg;window.navigationBarColor=bg;layout();restoreSavedStorage();if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),90);showDashcam()}
@@ -129,7 +130,7 @@ class MainActivity:Activity(){
         body.addView(row,LinearLayout.LayoutParams(-1,dp(66)).apply{bottomMargin=dp(6)})
     }
     private fun section(s:String){body.addView(text(s.uppercase(),11f,muted).apply{letterSpacing=.1f;setTypeface(null,Typeface.BOLD);setPadding(dp(4),dp(15),0,dp(9))})}
-    private fun home(){mode="home";selectionMode=false;selectedDrive.clear();selectedLocal.clear();title.text="P4 FILES";subtitle.text="차량과 클라우드 파일을 한곳에서";body.removeAllViews();actions.removeAllViews()
+    private fun home(){mode="home";selectionMode=false;selectedDrive.clear();selectedLocal.clear();title.text="P4 FILES";caption("차량과 클라우드 파일을 한곳에서");body.removeAllViews();actions.removeAllViews()
         actions.addView(button("대시캠"){showDashcam()},LinearLayout.LayoutParams(-2,dp(42)).apply{rightMargin=dp(6)});actions.addView(button("전송 대기열"){showQueue()},LinearLayout.LayoutParams(-2,dp(42)).apply{rightMargin=dp(6)});actions.addView(button("즐겨찾기"){showFavorites()},LinearLayout.LayoutParams(-2,dp(42)).apply{rightMargin=dp(6)});actions.addView(button("최근 항목"){showRecent()},LinearLayout.LayoutParams(-2,dp(42)).apply{rightMargin=dp(6)});actions.addView(button("인증 진단"){showDiagnostics()},LinearLayout.LayoutParams(-2,dp(42)))
         if(resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE&&resources.configuration.screenWidthDp>=700){showDualPane();return}
         section("기기 저장공간")
@@ -164,7 +165,7 @@ class MainActivity:Activity(){
         }
     }
     private fun showDashcam(){
-        mode="dashcam";title.text="대시캠";subtitle.text="Polestar 4 순정 DVR 영상";actions.removeAllViews();body.removeAllViews()
+        mode="dashcam";title.text="대시캠";caption("");actions.removeAllViews();body.removeAllViews()
         loadDashcamCache()
         dashcamLoading=true
         if(dashcamDay==null)dashcamDay=SimpleDateFormat("yyyy-MM-dd",Locale.KOREA).format(Date())
@@ -225,7 +226,7 @@ class MainActivity:Activity(){
             try{dashcamMonth.time=SimpleDateFormat("yyyy-MM-dd",Locale.KOREA).parse(dashcamDay!!)?:Date()}catch(_:Exception){}
             dashcamMonth.set(java.util.Calendar.DAY_OF_MONTH,1)
         }
-        subtitle.text="저장된 DVR 기록을 날짜별로 확인"
+        caption("")
         actions.removeAllViews()
         actions.addView(button("내역 새로고침"){showDashcam()},LinearLayout.LayoutParams(-2,dp(if(carLayout())56 else 42)).apply{rightMargin=dp(8)})
         actions.addView(button("전체 다시 읽기"){confirmDashcamCacheReset()},LinearLayout.LayoutParams(-2,dp(if(carLayout())56 else 42)).apply{rightMargin=dp(8)})
