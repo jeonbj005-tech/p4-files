@@ -1,4 +1,4 @@
-# P4 Files 1.30
+# P4 Files 1.31
 
 Polestar 4와 Android 휴대폰에서 로컬/USB 저장소와 Google Drive를 함께 탐색하고 전송하는 파일 매니저입니다.
 

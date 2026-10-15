@@ -95,7 +95,7 @@ class MainActivity:Activity(){
     private fun caption(value:String){subtitle.text=value;subtitle.visibility=if(value.isBlank())View.GONE else View.VISIBLE}
     private fun carLayout()=packageManager.hasSystemFeature("android.hardware.type.automotive")||(resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE&&resources.configuration.screenWidthDp>=600)
     private fun button(s:String,click:()->Unit)=Button(this).apply{text=s;isAllCaps=false;textSize=if(carLayout())18f else 13f;setTextColor(Color.rgb(226,237,251));setPadding(dp(if(carLayout())20 else 13),0,dp(if(carLayout())20 else 13),0);minHeight=dp(if(carLayout())54 else 42);minimumWidth=0;minWidth=0;background=panel(surfaceRaised);setOnClickListener{if(!busy)click()}}
-    override fun onCreate(b:Bundle?){super.onCreate(b);window.statusBarColor=bg;window.navigationBarColor=bg;layout();restoreSavedStorage();if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),90);showDashcam()}
+    override fun onCreate(b:Bundle?){super.onCreate(b);window.statusBarColor=bg;window.navigationBarColor=bg;layout();restoreSavedStorage();if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),90);showDashcam(false);handler.postDelayed({if(!isFinishing&&!busy)checkAppUpdate(false)},1500)}
     private fun layout(){
         val root=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(16),dp(10),dp(16),dp(8));setBackgroundColor(bg)}
         root.setOnApplyWindowInsetsListener { view,insets -> view.setPadding(dp(16)+insets.systemWindowInsetLeft,dp(10)+insets.systemWindowInsetTop,dp(16)+insets.systemWindowInsetRight,dp(8)+insets.systemWindowInsetBottom);insets }
@@ -164,13 +164,13 @@ class MainActivity:Activity(){
             }
         }
     }
-    private fun showDashcam(){
+    private fun showDashcam(loadFromVehicle:Boolean=false){
         mode="dashcam";title.text="대시캠";caption("");actions.removeAllViews();body.removeAllViews()
         loadDashcamCache()
-        dashcamLoading=true
+        dashcamLoading=loadFromVehicle
         if(dashcamDay==null)dashcamDay=SimpleDateFormat("yyyy-MM-dd",Locale.KOREA).format(Date())
         renderDashcam(dashcamItems)
-        loadDashcamMonth()
+        if(loadFromVehicle)loadDashcamMonth() else state.text="캐시된 내역 ${dashcamItems.size}개 · 차량 조회는 '내역 새로고침'"
     }
     private fun loadDashcamMonth(){
         dashcamLoading=true;renderDashcam(dashcamItems)
@@ -228,7 +228,7 @@ class MainActivity:Activity(){
         }
         caption("")
         actions.removeAllViews()
-        actions.addView(button("내역 새로고침"){showDashcam()},LinearLayout.LayoutParams(-2,dp(if(carLayout())56 else 42)).apply{rightMargin=dp(8)})
+        actions.addView(button("내역 새로고침"){showDashcam(true)},LinearLayout.LayoutParams(-2,dp(if(carLayout())56 else 42)).apply{rightMargin=dp(8)})
         actions.addView(button("전체 다시 읽기"){confirmDashcamCacheReset()},LinearLayout.LayoutParams(-2,dp(if(carLayout())56 else 42)).apply{rightMargin=dp(8)})
         actions.addView(button("앱 업데이트"){checkAppUpdate()},LinearLayout.LayoutParams(-2,dp(if(carLayout())56 else 42)))
         val landscape=resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE
@@ -335,7 +335,7 @@ class MainActivity:Activity(){
             val file=dashcamCacheFile();val temp=File(file.parentFile,"${file.name}.tmp");temp.writeText(root.toString());if(!temp.renameTo(file)){file.writeText(root.toString());temp.delete()}
         }catch(_:Exception){}
     }
-    private fun confirmDashcamCacheReset(){AlertDialog.Builder(this).setTitle("대시캠 캐시 초기화").setMessage("저장된 목록과 썸네일을 지우고 차량에서 전체 내역을 다시 읽습니다.").setNegativeButton("취소",null).setPositiveButton("전체 다시 읽기"){_,_->dashcamCacheFile().delete();File(filesDir,"dvr_thumbs").listFiles()?.forEach{it.delete()};dashcamThumbs.evictAll();dashcamItems=emptyList();dashcamCategories=emptyList();dashcamOffsets.clear();dashcamComplete.clear();showDashcam()}.show()}
+    private fun confirmDashcamCacheReset(){AlertDialog.Builder(this).setTitle("대시캠 캐시 초기화").setMessage("저장된 목록과 썸네일을 지우고 차량에서 전체 내역을 한 번 다시 읽습니다.").setNegativeButton("취소",null).setPositiveButton("전체 다시 읽기"){_,_->dashcamCacheFile().delete();File(filesDir,"dvr_thumbs").listFiles()?.forEach{it.delete()};dashcamThumbs.evictAll();dashcamItems=emptyList();dashcamCategories=emptyList();dashcamOffsets.clear();dashcamComplete.clear();showDashcam(true)}.show()}
     private fun dvrText(size:Float)=if(carLayout())size*2.0f else size
     private fun dashcamGroup(category:DashcamApi.Category)=when(category.type.lowercase(Locale.ROOT)){"emergency"->"긴급";"avm","avm_emergency"->"서라운드";"photo"->"사진";else->"상시"}
     private fun dashcamActions(category:DashcamApi.Category,media:DashcamApi.Media){
@@ -603,7 +603,7 @@ class MainActivity:Activity(){
     private fun openUri(u:Uri,mime:String?){if(mime=="application/vnd.android.package-archive"){installApk(u);return};try{val intent=Intent(Intent.ACTION_VIEW).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);if(mime==null)intent.data=u else intent.setDataAndType(u,mime);startActivity(intent)}catch(e:ActivityNotFoundException){AlertDialog.Builder(this).setMessage("파일은 저장되어 있습니다. 이 파일을 열 수 있는 앱이 설치되어 있지 않습니다.").setPositiveButton("확인",null).show()}}
     private fun updatePrefs()=getSharedPreferences("p4_update",0)
     private fun updateManifestUrl()=updatePrefs().getString("manifest_url",null)?.trim().orEmpty().ifBlank{BuildConfig.UPDATE_MANIFEST_URL.trim()}
-    private fun checkAppUpdate(){
+    private fun checkAppUpdate(showLatest:Boolean=true){
         val saved=updateManifestUrl();if(saved.isBlank()){
             val edit=EditText(this).apply{hint="https://github.com/OWNER/REPO/releases/latest/download/update.json";inputType=android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI}
             AlertDialog.Builder(this).setTitle("업데이트 주소 설정").setMessage("GitHub Release의 update.json 고정 주소를 입력하세요.").setView(edit).setNegativeButton("취소",null).setPositiveButton("저장"){_,_->val url=edit.text.toString().trim();if(url.startsWith("https://")){updatePrefs().edit().putString("manifest_url",url).apply();checkAppUpdate()}else state.text="HTTPS 업데이트 주소가 필요합니다"}.show();return
@@ -611,8 +611,8 @@ class MainActivity:Activity(){
         task("업데이트 확인 중"){
             val info=appUpdater.check(saved)
             runOnUiThread{
-                if(info.versionCode<=BuildConfig.VERSION_CODE)AlertDialog.Builder(this).setTitle("최신 버전입니다").setMessage("설치됨 v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})").setPositiveButton("확인",null).setNeutralButton("주소 변경"){_,_->updatePrefs().edit().remove("manifest_url").apply();checkAppUpdate()}.show()
-                else AlertDialog.Builder(this).setTitle("P4 Files v${info.versionName} 업데이트").setMessage("설치됨 v${BuildConfig.VERSION_NAME}\n새 버전 v${info.versionName}\n\n${info.notes}").setNegativeButton("나중에",null).setNeutralButton("주소 변경"){_,_->updatePrefs().edit().remove("manifest_url").apply();checkAppUpdate()}.setPositiveButton("Download에 저장"){_,_->downloadAppUpdate(info)}.show()
+                if(info.versionCode<=BuildConfig.VERSION_CODE){if(showLatest)AlertDialog.Builder(this).setTitle("최신 버전입니다").setMessage("설치됨 v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})").setPositiveButton("확인",null).setNeutralButton("주소 변경"){_,_->updatePrefs().edit().remove("manifest_url").apply();checkAppUpdate()}.show()}
+                else AlertDialog.Builder(this).setTitle("P4 Files v${info.versionName} 업데이트").setMessage("설치됨 v${BuildConfig.VERSION_NAME}\n새 버전 v${info.versionName}\n\n${info.notes}\n\n차량 정책상 P4 Files에서 직접 설치하지 않고 순정 Download 폴더로 넘깁니다.").setNegativeButton("나중에",null).setNeutralButton("주소 변경"){_,_->updatePrefs().edit().remove("manifest_url").apply();checkAppUpdate()}.setPositiveButton("다운로드"){_,_->downloadAppUpdate(info)}.show()
             }
         }
     }
@@ -627,7 +627,7 @@ class MainActivity:Activity(){
     }
     private fun showDownloadedUpdate(uri:Uri,name:String){
         pendingInstallUri=uri;state.text="Download/$name 저장 완료"
-        AlertDialog.Builder(this).setTitle("업데이트 다운로드 완료").setMessage("공용 Download 폴더에 저장했습니다.\n\n$name\n\n차량에서는 순정 파일 앱에서 이 APK를 눌러 설치하세요.").setNegativeButton("닫기",null).setNeutralButton("설치 시도"){_,_->installApk(uri)}.setPositiveButton("순정 Download 열기"){_,_->openSystemDownloads()}.show()
+        AlertDialog.Builder(this).setTitle("업데이트 다운로드 완료").setMessage("공용 Download 폴더에 저장했습니다.\n\n$name\n\n차량 보안 정책 때문에 P4 Files에서 설치하면 차단됩니다. 지금 순정 파일 앱의 Download 폴더를 열어 APK를 눌러 설치하세요.").setNegativeButton("나중에",null).setPositiveButton("순정 Download 열기"){_,_->openSystemDownloads()}.show()
     }
     private fun openSystemDownloads(){
         val intents=listOf(Intent(android.app.DownloadManager.ACTION_VIEW_DOWNLOADS),Intent(Intent.ACTION_VIEW,android.provider.DocumentsContract.buildDocumentUri("com.android.externalstorage.documents","primary:Download")).setType("vnd.android.document/directory").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
