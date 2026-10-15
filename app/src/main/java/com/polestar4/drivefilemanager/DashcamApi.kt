@@ -57,10 +57,15 @@ class DashcamApi {
         listOf("list","files","data","items").firstNotNullOfOrNull{json.optJSONArray(it)}
             ?: json.keys().asSequence().mapNotNull{json.optJSONArray(it)}.firstOrNull()
 
-    fun enterFileList(){
+    private fun isInFileList():Boolean=try{
+        JSONObject(get(STATUS)).optString("recording")=="in-file-list"
+    }catch(_:Exception){false}
+
+    fun enterFileList():Boolean{
+        if(isInFileList())return false
         postMode(ENTER_BODY)
         repeat(6){
-            if(JSONObject(get(STATUS)).optString("recording")=="in-file-list")return
+            if(JSONObject(get(STATUS)).optString("recording")=="in-file-list")return true
             Thread.sleep(250)
         }
         throw IOException("DVR did not enter file-list mode")
@@ -69,21 +74,17 @@ class DashcamApi {
     fun leaveFileList(){try{postMode(NORMAL_BODY)}catch(_:Exception){}}
 
     fun <T> withFileList(block:()->T):T=synchronized(modeLock){
-        enterFileList()
-        try{block()}finally{leaveFileList()}
+        val changed=enterFileList()
+        try{block()}finally{if(changed)leaveFileList()}
     }
 
     private fun fileListGet(path:String):String{
-        var last:Exception?=null
-        repeat(3){attempt->
-            try{return get(path)}catch(e:DvrHttpException){
-                last=e
-                if(e.code!=403&&!e.detail.contains("NO_FILE_LIST_MODE",true)&&!e.detail.contains("error\":3"))throw e
-                enterFileList()
-                if(attempt<2)Thread.sleep(300)
+        try{return get(path)}catch(e:DvrHttpException){
+            if(e.code==403||e.detail.contains("NO_FILE_LIST_MODE",true)||e.detail.contains("error\":3")){
+                throw IOException("DVR 파일목록 모드가 해제되었습니다. 자동 재진입을 중단했습니다.")
             }
+            throw e
         }
-        throw last?:IOException("DVR file-list request failed")
     }
 
     fun categories():List<Category>{
@@ -137,16 +138,13 @@ class DashcamApi {
     }
 
     fun download(media:Media,out:OutputStream,progress:(Long)->Unit={}){
-        repeat(3){attempt->
-            val c=connection(media.url)
-            try {
-                val code=c.responseCode
-                if(code==403){if(attempt<2){enterFileList();Thread.sleep(300);return@repeat};throw IOException("DVR HTTP 403: NO_FILE_LIST_MODE")}
-                if(code !in 200..299)throw IOException("DVR HTTP $code")
-                c.inputStream.use{input->val buffer=ByteArray(256*1024);var total=0L;while(true){val n=input.read(buffer);if(n<0)break;out.write(buffer,0,n);total+=n;progress(total)}}
-                return
-            } finally { c.disconnect() }
-        }
+        val c=connection(media.url)
+        try {
+            val code=c.responseCode
+            if(code==403)throw IOException("DVR HTTP 403: 파일목록 모드가 해제되어 다운로드를 중단했습니다.")
+            if(code !in 200..299)throw IOException("DVR HTTP $code")
+            c.inputStream.use{input->val buffer=ByteArray(256*1024);var total=0L;while(true){val n=input.read(buffer);if(n<0)break;out.write(buffer,0,n);total+=n;progress(total)}}
+        } finally { c.disconnect() }
     }
 
     /** Never changes DVR mode: repeated enter/leave cycles split normal recordings into tiny clips. */
