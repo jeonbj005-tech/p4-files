@@ -149,21 +149,11 @@ class DashcamApi {
         }
     }
 
-    fun thumbnail(media:Media):ByteArray?=synchronized(modeLock){
+    /** Never changes DVR mode: repeated enter/leave cycles split normal recordings into tiny clips. */
+    fun thumbnail(media:Media):ByteArray?{
         val url="$BASE/thumbnail?app=gallery&mediaType=${enc(media.type)}&id=${enc(media.id)}&time=${media.dateTime}"
-        try{enterFileList()
-            repeat(3){attempt->
-                val c=connection(url).apply{connectTimeout=6_000;readTimeout=10_000}
-                try{
-                    val code=c.responseCode
-                    if(code==200){val bytes=c.inputStream.use{it.readBytes()};if(bytes.isNotEmpty())return bytes}
-                    if(code==403||code==409){c.disconnect();enterFileList()}
-                }catch(_:Exception){try{enterFileList()}catch(_:Exception){}}
-                finally{c.disconnect()}
-                if(attempt<2)Thread.sleep(250)
-            }
-        }finally{leaveFileList()}
-        return null
+        val c=connection(url).apply{connectTimeout=4_000;readTimeout=6_000}
+        return try{if(c.responseCode==200)c.inputStream.use{it.readBytes().takeIf(ByteArray::isNotEmpty)}else null}catch(_:Exception){null}finally{c.disconnect()}
     }
 
     private fun enc(value:String)=URLEncoder.encode(value,"UTF-8").replace("+","%20")
