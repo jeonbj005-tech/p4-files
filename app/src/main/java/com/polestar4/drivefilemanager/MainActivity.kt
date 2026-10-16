@@ -1,6 +1,8 @@
 package com.polestar4.drivefilemanager
 
 import android.app.*
+import android.animation.AnimatorSet
+import android.animation.ObjectAnimator
 import android.content.*
 import android.content.pm.PackageManager
 import android.graphics.Color
@@ -90,6 +92,7 @@ class MainActivity:Activity(){
     private var dashcamCacheLoaded=false
     private var dashcamRefreshGeneration=0L
     private var firstDashcamIntro=true
+    private var dashcamEntranceAnimated=false
     private val dashcamMonth=java.util.Calendar.getInstance().apply{set(java.util.Calendar.DAY_OF_MONTH,1)}
     private val authorizationRequestCode=74
     private val bg=Color.rgb(10,12,15)
@@ -114,7 +117,7 @@ class MainActivity:Activity(){
         subtitle=text("",if(carLayout())17f else 12f,muted);subtitle.setPadding(dp(2),dp(3),0,dp(if(carLayout())14 else 10));root.addView(subtitle)
         actions=LinearLayout(this).apply{dividerDrawable=android.graphics.drawable.ColorDrawable(Color.TRANSPARENT);showDividers=LinearLayout.SHOW_DIVIDER_MIDDLE;dividerPadding=dp(4)};root.addView(HorizontalScrollView(this).apply{addView(actions);isHorizontalScrollBarEnabled=false})
         body=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL}
-        bodyScroll=ScrollView(this).apply{addView(body);isFillViewport=true};root.addView(bodyScroll,LinearLayout.LayoutParams(-1,0,1f))
+        bodyScroll=ScrollView(this).apply{addView(body);isFillViewport=true;clipToPadding=false};root.addView(bodyScroll,LinearLayout.LayoutParams(-1,0,1f))
         progress=ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal).apply{isIndeterminate=true;visibility=View.GONE};root.addView(progress,LinearLayout.LayoutParams(-1,dp(4)))
         state=text("준비됨",if(carLayout())20f else 11f,muted).apply{setPadding(dp(if(carLayout())18 else 12),dp(if(carLayout())12 else 7),dp(if(carLayout())18 else 12),dp(if(carLayout())12 else 7));background=panel(surface)};root.addView(state,LinearLayout.LayoutParams(-1,-2).apply{topMargin=dp(if(carLayout())10 else 6)})
         setContentView(root)
@@ -179,7 +182,7 @@ class MainActivity:Activity(){
         if(dashcamDay==null)dashcamDay=SimpleDateFormat("yyyy-MM-dd",Locale.KOREA).format(Date())
         renderDashcam(dashcamItems)
         if(dashcamCacheLoaded){
-            if(loadFromVehicle)loadDashcamMonth() else state.text="캐시된 내역 ${dashcamItems.size}개 · 차량 조회는 '내역 새로고침'"
+            if(loadFromVehicle)loadDashcamMonth() else state.text="저장된 기록 ${dashcamItems.size}개 · 최신 기록은 새로고침"
         }else{
             state.text="캐시 읽는 중…"
             worker.execute{
@@ -187,17 +190,18 @@ class MainActivity:Activity(){
                 runOnUiThread{
                     dashcamCacheLoaded=true
                     renderDashcam(dashcamItems)
-                    if(loadFromVehicle)loadDashcamMonth() else state.text="캐시된 내역 ${dashcamItems.size}개 · 차량 조회는 '내역 새로고침'"
+                    if(loadFromVehicle)loadDashcamMonth() else state.text="저장된 기록 ${dashcamItems.size}개 · 최신 기록은 새로고침"
                 }
             }
         }
     }
-    private fun loadDashcamMonth(){
-        dashcamLoading=true;renderDashcam(dashcamItems)
+    private fun loadDashcamMonth(showLoading:Boolean=true){
+        dashcamLoading=showLoading
+        if(showLoading)renderDashcam(dashcamItems)
         val targetStart=java.util.Calendar.getInstance().apply{timeInMillis=dashcamMonth.timeInMillis;set(java.util.Calendar.DAY_OF_MONTH,1);set(java.util.Calendar.HOUR_OF_DAY,0);set(java.util.Calendar.MINUTE,0);set(java.util.Calendar.SECOND,0);set(java.util.Calendar.MILLISECOND,0)}.timeInMillis
         val targetEnd=java.util.Calendar.getInstance().apply{timeInMillis=targetStart;add(java.util.Calendar.MONTH,1)}.timeInMillis
         val generation=dashcamRefreshGeneration
-        task("${dashcamMonth.get(java.util.Calendar.MONTH)+1}월 내역 읽는 중"){
+        task("${dashcamMonth.get(java.util.Calendar.MONTH)+1}월 최신 기록 확인 중"){
             try{
                 val snapshots=dashcamApi.withFileList("explicit-month-refresh") {
                 if(dashcamCategories.isEmpty())dashcamCategories=dashcamApi.categories()
@@ -245,12 +249,12 @@ class MainActivity:Activity(){
         }
         caption("")
         actions.removeAllViews()
-        actions.addView(button("내역 새로고침"){showDashcam(true)},LinearLayout.LayoutParams(-2,dp(if(carLayout())56 else 42)).apply{rightMargin=dp(8)})
-        actions.addView(button("전체 다시 읽기"){confirmDashcamCacheReset()},LinearLayout.LayoutParams(-2,dp(if(carLayout())56 else 42)).apply{rightMargin=dp(8)})
-        actions.addView(button("앱 업데이트"){checkAppUpdate()},LinearLayout.LayoutParams(-2,dp(if(carLayout())56 else 42)).apply{rightMargin=dp(8)})
-        actions.addView(button("선택 날짜 썸네일"){requestDashcamThumbnails(true)},LinearLayout.LayoutParams(-2,dp(if(carLayout())56 else 42)))
-        if(firstDashcamIntro)body.addView(dashcamIntro(),LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(10)})
+        actions.addView(button("새로고침"){showDashcam(true)},LinearLayout.LayoutParams(-2,dp(if(carLayout())56 else 42)).apply{rightMargin=dp(8)})
+        actions.addView(button("캐시 초기화"){confirmDashcamCacheReset()},LinearLayout.LayoutParams(-2,dp(if(carLayout())56 else 42)).apply{rightMargin=dp(8)})
+        actions.addView(button("업데이트"){checkAppUpdate()},LinearLayout.LayoutParams(-2,dp(if(carLayout())56 else 42)).apply{rightMargin=dp(8)})
+        actions.addView(button("썸네일 새로고침"){requestDashcamThumbnails(true)},LinearLayout.LayoutParams(-2,dp(if(carLayout())56 else 42)))
         val landscape=resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        if(firstDashcamIntro&&!landscape)body.addView(dashcamIntro(),LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(10)})
         val holder=LinearLayout(this).apply{orientation=if(landscape)LinearLayout.HORIZONTAL else LinearLayout.VERTICAL}
         val calendarPane=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(8),dp(12),dp(18),dp(10))}
         val recordsPane=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(18),dp(12),dp(8),dp(10))}
@@ -259,7 +263,21 @@ class MainActivity:Activity(){
         if(holder.orientation==LinearLayout.HORIZONTAL){holder.addView(calendarPane,LinearLayout.LayoutParams(0,-1,1.18f));holder.addView(recordsPane,LinearLayout.LayoutParams(0,-1,.82f))}
         else{holder.addView(calendarPane);holder.addView(recordsPane)}
         body.addView(holder,LinearLayout.LayoutParams(-1,if(landscape&&bodyScroll.height>0)bodyScroll.height else -2))
-        if(landscape)bodyScroll.post{holder.layoutParams=holder.layoutParams.apply{height=bodyScroll.height};bodyScroll.scrollTo(0,0)}
+        if(landscape){
+            bodyScroll.isVerticalScrollBarEnabled=false
+            bodyScroll.overScrollMode=View.OVER_SCROLL_NEVER
+            bodyScroll.post{holder.layoutParams=holder.layoutParams.apply{height=bodyScroll.height};bodyScroll.scrollTo(0,0);bodyScroll.requestDisallowInterceptTouchEvent(false)}
+        }
+        animateDashcamEntrance(holder)
+    }
+    private fun animateDashcamEntrance(holder:View){
+        if(dashcamEntranceAnimated)return
+        dashcamEntranceAnimated=true
+        holder.alpha=0f;holder.translationY=dp(14).toFloat()
+        AnimatorSet().apply{
+            playTogether(ObjectAnimator.ofFloat(holder,View.ALPHA,0f,1f),ObjectAnimator.ofFloat(holder,View.TRANSLATION_Y,dp(14).toFloat(),0f))
+            duration=520;interpolator=android.view.animation.DecelerateInterpolator();start()
+        }
     }
     private fun dashcamIntro():View{
         val glow=GradientDrawable(GradientDrawable.Orientation.TL_BR,intArrayOf(Color.rgb(25,86,151),Color.rgb(36,181,220),Color.rgb(104,82,210))).apply{cornerRadius=dp(22).toFloat()}
@@ -287,9 +305,9 @@ class MainActivity:Activity(){
     }
     private fun renderDashcamMonth(host:LinearLayout){
         val header=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL}
-        header.addView(button("◀"){dashcamMonth.add(java.util.Calendar.MONTH,-1);dashcamVisibleLimit=50;dashcamDay=String.format(Locale.KOREA,"%04d-%02d-01",dashcamMonth.get(java.util.Calendar.YEAR),dashcamMonth.get(java.util.Calendar.MONTH)+1);loadDashcamMonth()},LinearLayout.LayoutParams(dp(if(carLayout())78 else 58),dp(if(carLayout())58 else 42)))
+        header.addView(button("◀"){dashcamMonth.add(java.util.Calendar.MONTH,-1);dashcamVisibleLimit=50;selectCachedDashcamDay();renderDashcam(dashcamItems);state.text="저장된 ${dashcamMonth.get(java.util.Calendar.MONTH)+1}월 기록 표시 · 최신화 중";loadDashcamMonth(false)},LinearLayout.LayoutParams(dp(if(carLayout())78 else 58),dp(if(carLayout())58 else 42)))
         header.addView(text(String.format(Locale.KOREA,"%d년 %d월",dashcamMonth.get(java.util.Calendar.YEAR),dashcamMonth.get(java.util.Calendar.MONTH)+1),dvrText(24f)).apply{gravity=Gravity.CENTER;setTypeface(null,Typeface.BOLD)},LinearLayout.LayoutParams(0,dp(if(carLayout())70 else 56),1f))
-        header.addView(button("▶"){dashcamMonth.add(java.util.Calendar.MONTH,1);dashcamVisibleLimit=50;dashcamDay=String.format(Locale.KOREA,"%04d-%02d-01",dashcamMonth.get(java.util.Calendar.YEAR),dashcamMonth.get(java.util.Calendar.MONTH)+1);loadDashcamMonth()},LinearLayout.LayoutParams(dp(if(carLayout())78 else 58),dp(if(carLayout())58 else 42)))
+        header.addView(button("▶"){dashcamMonth.add(java.util.Calendar.MONTH,1);dashcamVisibleLimit=50;selectCachedDashcamDay();renderDashcam(dashcamItems);state.text="저장된 ${dashcamMonth.get(java.util.Calendar.MONTH)+1}월 기록 표시 · 최신화 중";loadDashcamMonth(false)},LinearLayout.LayoutParams(dp(if(carLayout())78 else 58),dp(if(carLayout())58 else 42)))
         host.addView(header)
         val weekdays=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL}
         arrayOf("일","월","화","수","목","금","토").forEachIndexed{i,label->weekdays.addView(text(label,dvrText(14f),when(i){0->Color.rgb(255,120,120);6->Color.rgb(110,175,255);else->muted}).apply{gravity=Gravity.CENTER;setTypeface(null,Typeface.BOLD)},LinearLayout.LayoutParams(0,dp(if(carLayout())48 else 38),1f))}
@@ -311,6 +329,16 @@ class MainActivity:Activity(){
             }
             host.addView(week)
         }
+    }
+    private fun selectCachedDashcamDay(){
+        val year=dashcamMonth.get(java.util.Calendar.YEAR);val month=dashcamMonth.get(java.util.Calendar.MONTH)
+        val start=java.util.Calendar.getInstance().apply{set(year,month,1,0,0,0);set(java.util.Calendar.MILLISECOND,0)}.timeInMillis
+        val end=java.util.Calendar.getInstance().apply{timeInMillis=start;add(java.util.Calendar.MONTH,1)}.timeInMillis
+        val monthItems=dashcamItems.filter{dashcamTime(it.second.dateTime,it.second.name) in start until end}
+        val selected=monthItems.maxByOrNull{dashcamTime(it.second.dateTime,it.second.name)}?.second?.let{dashcamDayKey(it)}
+        dashcamDay=selected?:String.format(Locale.KOREA,"%04d-%02d-01",year,month+1)
+        val kinds=monthItems.groupingBy{dashcamGroup(it.first)}.eachCount()
+        if(kinds.getOrDefault(dashcamKind,0)==0)dashcamKind=listOf("상시","긴급","서라운드","사진").firstOrNull{kinds.getOrDefault(it,0)>0}?:dashcamKind
     }
     private fun dashcamDayCell(day:Int,key:String,records:List<Pair<DashcamApi.Category,DashcamApi.Media>>):View{
         val selected=key==dashcamDay
@@ -338,7 +366,16 @@ class MainActivity:Activity(){
         visible.forEach{(category,media)->dashcamRecordRow(rows,category,media)}
         if(visible.isEmpty())rows.addView(text("$dashcamKind 기록이 없습니다.",dvrText(14f),muted).apply{setPadding(dp(4),dp(14),0,0)})
         if(visible.size<allVisible.size)rows.addView(button("더 보기 · ${visible.size}/${allVisible.size}"){dashcamVisibleLimit+=50;renderDashcam(dashcamItems)},LinearLayout.LayoutParams(-1,dp(if(carLayout())58 else 46)).apply{topMargin=dp(4);bottomMargin=dp(10)})
-        if(independentScroll)host.addView(ScrollView(this).apply{addView(rows);isFillViewport=false},LinearLayout.LayoutParams(-1,0,1f)) else host.addView(rows)
+        if(independentScroll){
+            val listScroll=ScrollView(this).apply{
+                addView(rows);isFillViewport=false;isNestedScrollingEnabled=false;overScrollMode=View.OVER_SCROLL_NEVER
+                setOnTouchListener{view,event->
+                    when(event.actionMasked){MotionEvent.ACTION_DOWN,MotionEvent.ACTION_MOVE->view.parent?.requestDisallowInterceptTouchEvent(true);MotionEvent.ACTION_UP,MotionEvent.ACTION_CANCEL->view.parent?.requestDisallowInterceptTouchEvent(false)}
+                    false
+                }
+            }
+            host.addView(listScroll,LinearLayout.LayoutParams(-1,0,1f))
+        }else host.addView(rows)
     }
     private fun dashcamRecordRow(host:LinearLayout,category:DashcamApi.Category,media:DashcamApi.Media){
         val row=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(dp(8),dp(8),dp(8),dp(8));background=panel(surface);setOnClickListener{if(!busy)dashcamPreview(media)}}
