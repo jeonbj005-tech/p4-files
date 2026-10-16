@@ -21,7 +21,14 @@ class DashcamApi {
         private const val ENTER_BODY="{\"app\":\"gallery\",\"recording\":\"enter-file-list\"}"
         private const val NORMAL_BODY="{\"app\":\"gallery\",\"recording\":\"normal\"}"
     }
-    private val modeLock=Any()
+    private val sessionManager = DvrSessionManager(
+        isInFileList = { isInFileList() },
+        enterFileList = { enterFileList() },
+        leaveFileList = { leaveFileList() },
+        log = { transition ->
+            android.util.Log.i("P4DvrSession", "${transition.timestamp} ${transition.previous}->${transition.target} ${transition.reason} ${transition.result}")
+        }
+    )
     private class DvrHttpException(val code:Int,val detail:String):IOException("DVR HTTP $code: ${detail.take(200)}")
 
     private fun connection(url:String)=((URL(url).openConnection()) as HttpURLConnection).apply {
@@ -73,10 +80,7 @@ class DashcamApi {
 
     fun leaveFileList(){try{postMode(NORMAL_BODY)}catch(_:Exception){}}
 
-    fun <T> withFileList(block:()->T):T=synchronized(modeLock){
-        val changed=enterFileList()
-        try{block()}finally{if(changed)leaveFileList()}
-    }
+    fun <T> withFileList(reason:String="file-list", block:()->T):T=sessionManager.withFileList(reason,block)
 
     private fun fileListGet(path:String):String{
         try{return get(path)}catch(e:DvrHttpException){
@@ -149,22 +153,19 @@ class DashcamApi {
 
     private fun thumbnailRequest(media:Media):ByteArray?{
         val url="$BASE/thumbnail?app=gallery&mediaType=${enc(media.type)}&id=${enc(media.id)}&time=${media.dateTime}"
-        repeat(2){
-            val c=connection(url).apply{connectTimeout=4_000;readTimeout=6_000}
-            try{if(c.responseCode==200){val bytes=c.inputStream.use{it.readBytes()};if(bytes.isNotEmpty())return bytes}}
-            catch(_:Exception){}
-            finally{c.disconnect()}
-            if(it==0)Thread.sleep(80)
-        }
+        val c=connection(url).apply{connectTimeout=4_000;readTimeout=6_000}
+        try{if(c.responseCode==200){val bytes=c.inputStream.use{it.readBytes()};if(bytes.isNotEmpty())return bytes}}
+        catch(_:Exception){}
+        finally{c.disconnect()}
         return null
     }
 
     /** Fetch a screen's thumbnails in one file-list session instead of toggling DVR mode per item. */
-    fun thumbnails(media:List<Media>):List<Pair<Media,ByteArray>> = synchronized(modeLock){
+    fun thumbnails(media:List<Media>):List<Pair<Media,ByteArray>> {
         if(media.isEmpty())return emptyList()
-        val changed=try{enterFileList()}catch(_:Exception){false}
-        try{media.mapNotNull{m->thumbnailRequest(m)?.let{m to it}}}
-        finally{if(changed)leaveFileList()}
+        return sessionManager.withFileList("explicit-thumbnail-request") {
+            media.mapNotNull{m->thumbnailRequest(m)?.let{m to it}}
+        }
     }
 
     private fun enc(value:String)=URLEncoder.encode(value,"UTF-8").replace("+","%20")

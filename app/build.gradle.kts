@@ -15,7 +15,7 @@ fun quotedBuildValue(name: String): String =
 
 android {
     namespace = "com.polestar4.drivefilemanager"; compileSdk = 35
-    defaultConfig { applicationId = "com.polestar4.drivefilemanager"; minSdk = 26; targetSdk = 35; versionCode = 43; versionName = "1.33"
+    defaultConfig { applicationId = "com.polestar4.drivefilemanager"; minSdk = 26; targetSdk = 35; versionCode = 44; versionName = "1.34"
         buildConfigField("String", "OAUTH_CLIENT_ID", "\"\"")
         buildConfigField("String", "OAUTH_CLIENT_SECRET", "\"\"")
         buildConfigField("String", "TV_OAUTH_CLIENT_ID", quotedBuildValue("clientId"))
@@ -27,6 +27,7 @@ android {
     kotlinOptions { jvmTarget = "17" }
 }
 dependencies {
+    testImplementation("junit:junit:4.13.2")
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.documentfile:documentfile:1.0.1")
     implementation("androidx.work:work-runtime-ktx:2.10.1")

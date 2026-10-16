@@ -37,6 +37,7 @@ import java.util.Locale
 import java.util.concurrent.Executors
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
+import java.security.MessageDigest
 
 class MainActivity:Activity(){
     private enum class SortMode(val label:String){NAME_ASC("이름 A–Z"),NAME_DESC("이름 Z–A"),NEWEST("최신순"),OLDEST("오래된순"),SIZE_DESC("용량 큰순"),SIZE_ASC("용량 작은순")}
@@ -48,8 +49,7 @@ class MainActivity:Activity(){
     private val thumbWorker=Executors.newFixedThreadPool(3)
     private val dashcamThumbs=android.util.LruCache<String,Bitmap>(40)
     private val dashcamThumbViews=ConcurrentHashMap<String,ImageView>()
-    private val dashcamThumbInFlight=ConcurrentHashMap.newKeySet<String>()
-    private val dashcamThumbnailDays=linkedSetOf<String>()
+    private val dashcamThumbnailStates=ThumbnailStateMachine()
     private val cancelled=AtomicBoolean(false)
     private var vehicleAuthCancel:AtomicBoolean?=null
     private var vehicleAuthDialog:AlertDialog?=null
@@ -83,12 +83,12 @@ class MainActivity:Activity(){
     private var pendingInstallUri:Uri?=null
     private var dashcamItems=listOf<Pair<DashcamApi.Category,DashcamApi.Media>>()
     private var dashcamCategories=listOf<DashcamApi.Category>()
-    private val dashcamOffsets=linkedMapOf<String,Int>()
-    private val dashcamComplete=linkedSetOf<String>()
     private var dashcamDay:String?=null
     private var dashcamKind="상시"
     private var dashcamVisibleLimit=50
     private var dashcamLoading=false
+    private var dashcamCacheLoaded=false
+    private var dashcamRefreshGeneration=0L
     private var firstDashcamIntro=true
     private val dashcamMonth=java.util.Calendar.getInstance().apply{set(java.util.Calendar.DAY_OF_MONTH,1)}
     private val authorizationRequestCode=74
@@ -103,7 +103,7 @@ class MainActivity:Activity(){
     private fun caption(value:String){subtitle.text=value;subtitle.visibility=if(value.isBlank())View.GONE else View.VISIBLE}
     private fun carLayout()=packageManager.hasSystemFeature("android.hardware.type.automotive")||(resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE&&resources.configuration.screenWidthDp>=600)
     private fun button(s:String,click:()->Unit)=Button(this).apply{text=s;isAllCaps=false;textSize=if(carLayout())18f else 13f;setTextColor(Color.rgb(226,237,251));setPadding(dp(if(carLayout())20 else 13),0,dp(if(carLayout())20 else 13),0);minHeight=dp(if(carLayout())54 else 42);minimumWidth=0;minWidth=0;background=panel(surfaceRaised);setOnClickListener{if(!busy)click()}}
-    override fun onCreate(b:Bundle?){super.onCreate(b);window.statusBarColor=bg;window.navigationBarColor=bg;layout();restoreSavedStorage();if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),90);showDashcam(true)}
+    override fun onCreate(b:Bundle?){super.onCreate(b);window.statusBarColor=bg;window.navigationBarColor=bg;layout();restoreSavedStorage();if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),90);showDashcam(false)}
     private fun layout(){
         val root=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(16),dp(10),dp(16),dp(8));setBackgroundColor(bg)}
         root.setOnApplyWindowInsetsListener { view,insets -> view.setPadding(dp(16)+insets.systemWindowInsetLeft,dp(10)+insets.systemWindowInsetTop,dp(16)+insets.systemWindowInsetRight,dp(8)+insets.systemWindowInsetBottom);insets }
@@ -174,56 +174,57 @@ class MainActivity:Activity(){
     }
     private fun showDashcam(loadFromVehicle:Boolean=false){
         mode="dashcam";title.text="대시캠";caption("");actions.removeAllViews();body.removeAllViews()
-        if(loadFromVehicle){dashcamThumbnailDays.clear();dashcamThumbViews.clear()}
-        loadDashcamCache()
-        dashcamLoading=loadFromVehicle
+        if(loadFromVehicle){dashcamRefreshGeneration++;dashcamThumbViews.clear()}
+        dashcamLoading=false
         if(dashcamDay==null)dashcamDay=SimpleDateFormat("yyyy-MM-dd",Locale.KOREA).format(Date())
         renderDashcam(dashcamItems)
-        if(loadFromVehicle)loadDashcamMonth() else state.text="캐시된 내역 ${dashcamItems.size}개 · 차량 조회는 '내역 새로고침'"
+        if(dashcamCacheLoaded){
+            if(loadFromVehicle)loadDashcamMonth() else state.text="캐시된 내역 ${dashcamItems.size}개 · 차량 조회는 '내역 새로고침'"
+        }else{
+            state.text="캐시 읽는 중…"
+            worker.execute{
+                loadDashcamCache()
+                runOnUiThread{
+                    dashcamCacheLoaded=true
+                    renderDashcam(dashcamItems)
+                    if(loadFromVehicle)loadDashcamMonth() else state.text="캐시된 내역 ${dashcamItems.size}개 · 차량 조회는 '내역 새로고침'"
+                }
+            }
+        }
     }
     private fun loadDashcamMonth(){
         dashcamLoading=true;renderDashcam(dashcamItems)
         val targetStart=java.util.Calendar.getInstance().apply{timeInMillis=dashcamMonth.timeInMillis;set(java.util.Calendar.DAY_OF_MONTH,1);set(java.util.Calendar.HOUR_OF_DAY,0);set(java.util.Calendar.MINUTE,0);set(java.util.Calendar.SECOND,0);set(java.util.Calendar.MILLISECOND,0)}.timeInMillis
         val targetEnd=java.util.Calendar.getInstance().apply{timeInMillis=targetStart;add(java.util.Calendar.MONTH,1)}.timeInMillis
+        val generation=dashcamRefreshGeneration
         task("${dashcamMonth.get(java.util.Calendar.MONTH)+1}월 내역 읽는 중"){
             try{
-                dashcamApi.withFileList {
+                val snapshots=dashcamApi.withFileList("explicit-month-refresh") {
                 if(dashcamCategories.isEmpty())dashcamCategories=dashcamApi.categories()
-                val merged=dashcamItems.toMutableList()
-                dashcamCategories.forEach{category->
-                    val existingKeys=merged.filter{it.first.type==category.type}.map{dashcamKey(it.second)}.toHashSet()
-                    if(existingKeys.isNotEmpty()){
-                        var refreshOffset=0
-                        refresh@ while(refreshOffset<1000){
-                            val page=dashcamApi.list(category,refreshOffset,200)
-                            if(page.isEmpty())break
-                            val hitKnown=page.any{dashcamKey(it) in existingKeys}
-                            val pageKeys=HashSet<String>()
-                            val fresh=page.filter{dashcamKey(it) !in existingKeys && pageKeys.add(dashcamKey(it))}
-                            merged.addAll(fresh.map{category to it});existingKeys.addAll(fresh.map{dashcamKey(it)})
-                            if(fresh.isNotEmpty())dashcamOffsets[category.type]=dashcamOffsets.getOrDefault(category.type,0)+fresh.size
-                            update("${category.label} 새 영상 ${fresh.size}개 확인")
-                            if(hitKnown||page.size<200)break@refresh
-                            refreshOffset+=200
-                        }
-                    }
-                    var offset=dashcamOffsets.getOrDefault(category.type,0)
-                    while(category.type !in dashcamComplete){
-                        val known=merged.filter{it.first.type==category.type}.map{dashcamTime(it.second.dateTime,it.second.name)}
-                        if(known.any{it in targetStart until targetEnd}&&known.minOrNull()?.let{it<targetStart}==true)break
+                dashcamCategories.map{category->
+                    val collected=mutableListOf<Pair<DashcamApi.Category,DashcamApi.Media>>()
+                    val seenInSnapshot=HashSet<String>()
+                    var offset=0
+                    var repeatedPages=0
+                    var complete=false
+                    while(offset<=100_000){
                         val page=dashcamApi.list(category,offset,200)
-                        val keys=merged.asSequence().map{dashcamKey(it.second)}.toHashSet()
-                        val unique=page.filter{keys.add(dashcamKey(it))}
-                        merged.addAll(unique.map{category to it})
-                        offset+=page.size;dashcamOffsets[category.type]=offset
-                        update("${category.label} ${offset}개 확인 · ${dashcamMonth.get(java.util.Calendar.MONTH)+1}월 찾는 중…")
-                        if(page.size<200||unique.isEmpty()){dashcamComplete.add(category.type);break}
-                        val pageTimes=page.map{dashcamTime(it.dateTime,it.name)}.filter{it>0}
-                        if(pageTimes.any{it in targetStart until targetEnd}&&pageTimes.minOrNull()!!<targetStart)break
+                        if(page.isEmpty()){complete=true;break}
+                        val unique=page.filter{seenInSnapshot.add(dashcamKey(it))}
+                        collected.addAll(unique.map{category to it})
+                        update("${category.label} ${offset+page.size}개 확인 · ${dashcamMonth.get(java.util.Calendar.MONTH)+1}월 조회 중…")
+                        if(page.size<200){complete=true;break}
+                        if(unique.isEmpty())repeatedPages++ else repeatedPages=0
+                        if(repeatedPages>=3)break
+                        offset+=page.size
                     }
+                    DvrSnapshotReconciler.CategorySnapshot(DashcamIdentity.categoryKey(category),collected,complete)
                 }
-                val items=merged.distinctBy{dashcamKey(it.second)}.sortedByDescending{dashcamTime(it.second.dateTime,it.second.name)}
-                dashcamItems=items;saveDashcamCache()
+                }
+                if(generation!=dashcamRefreshGeneration)return@task
+                val items=DvrSnapshotReconciler.reconcile(dashcamItems,snapshots)
+                    .sortedByDescending{dashcamTime(it.second.dateTime,it.second.name)}
+                dashcamItems=items;dashcamCacheLoaded=true;saveDashcamCache()
                 runOnUiThread{
                     dashcamLoading=false
                     selectDashcamDayAfterLoad(items,targetStart,targetEnd)
@@ -231,7 +232,6 @@ class MainActivity:Activity(){
                     renderDashcam(items)
                     val monthCount=items.count{dashcamTime(it.second.dateTime,it.second.name) in targetStart until targetEnd}
                     state.text="${dashcamMonth.get(java.util.Calendar.MONTH)+1}월 ${monthCount}개 · 누적 ${items.size}개 · 캐시 저장됨"
-                }
                 }
             }catch(e:Exception){runOnUiThread{dashcamLoading=false;renderDashcam(dashcamItems)};throw e}
         }
@@ -247,7 +247,8 @@ class MainActivity:Activity(){
         actions.removeAllViews()
         actions.addView(button("내역 새로고침"){showDashcam(true)},LinearLayout.LayoutParams(-2,dp(if(carLayout())56 else 42)).apply{rightMargin=dp(8)})
         actions.addView(button("전체 다시 읽기"){confirmDashcamCacheReset()},LinearLayout.LayoutParams(-2,dp(if(carLayout())56 else 42)).apply{rightMargin=dp(8)})
-        actions.addView(button("앱 업데이트"){checkAppUpdate()},LinearLayout.LayoutParams(-2,dp(if(carLayout())56 else 42)))
+        actions.addView(button("앱 업데이트"){checkAppUpdate()},LinearLayout.LayoutParams(-2,dp(if(carLayout())56 else 42)).apply{rightMargin=dp(8)})
+        actions.addView(button("선택 날짜 썸네일"){requestDashcamThumbnails(true)},LinearLayout.LayoutParams(-2,dp(if(carLayout())56 else 42)))
         if(firstDashcamIntro)body.addView(dashcamIntro(),LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(10)})
         val landscape=resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE
         val holder=LinearLayout(this).apply{orientation=if(landscape)LinearLayout.HORIZONTAL else LinearLayout.VERTICAL}
@@ -335,7 +336,6 @@ class MainActivity:Activity(){
         val visible=allVisible.take(dashcamVisibleLimit)
         val rows=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL}
         visible.forEach{(category,media)->dashcamRecordRow(rows,category,media)}
-        if(dashcamThumbnailDays.add(day))loadDashcamThumbnails(visible.map{it.second})
         if(visible.isEmpty())rows.addView(text("$dashcamKind 기록이 없습니다.",dvrText(14f),muted).apply{setPadding(dp(4),dp(14),0,0)})
         if(visible.size<allVisible.size)rows.addView(button("더 보기 · ${visible.size}/${allVisible.size}"){dashcamVisibleLimit+=50;renderDashcam(dashcamItems)},LinearLayout.LayoutParams(-1,dp(if(carLayout())58 else 46)).apply{topMargin=dp(4);bottomMargin=dp(10)})
         if(independentScroll)host.addView(ScrollView(this).apply{addView(rows);isFillViewport=false},LinearLayout.LayoutParams(-1,0,1f)) else host.addView(rows)
@@ -352,29 +352,37 @@ class MainActivity:Activity(){
         host.addView(row,LinearLayout.LayoutParams(-1,dp(106)).apply{bottomMargin=dp(7)})
     }
     private fun loadDashcamThumbnail(view:ImageView,media:DashcamApi.Media){
-        val key="${media.type}:${media.id}:${media.dateTime}"
-        dashcamThumbs.get(key)?.let{view.setImageBitmap(it);return}
-        val disk=File(File(filesDir,"dvr_thumbs").apply{mkdirs()},"${key.hashCode().toUInt().toString(16)}.jpg")
-        if(disk.exists())BitmapFactory.decodeFile(disk.absolutePath)?.let{dashcamThumbs.put(key,it);view.setImageBitmap(it);return}
+        val key=dashcamKey(media)
+        dashcamThumbs.get(key)?.let{dashcamThumbnailStates.ready(key);view.setImageBitmap(it);dashcamThumbViews[key]=view;return}
+        val thumbDir=File(filesDir,"dvr_thumbs").apply{mkdirs()}
+        val disk=File(thumbDir,"${key.hashCode().toUInt().toString(16)}.jpg")
+        val legacyDisk=File(thumbDir,"${"${media.type}:${media.id}:${media.dateTime}".hashCode().toUInt().toString(16)}.jpg")
+        if(!disk.exists()&&legacyDisk.exists())legacyDisk.copyTo(disk,overwrite=false)
+        if(disk.exists())BitmapFactory.decodeFile(disk.absolutePath)?.let{dashcamThumbs.put(key,it);dashcamThumbnailStates.ready(key);view.setImageBitmap(it);dashcamThumbViews[key]=view;return}
+        dashcamThumbnailStates.markMissing(key)
         dashcamThumbViews[key]=view
     }
-    private fun loadDashcamThumbnails(media:List<DashcamApi.Media>){
-        val missing=media.filter{m->
-            val key="${m.type}:${m.id}:${m.dateTime}"
-            dashcamThumbs.get(key)==null && dashcamThumbInFlight.add(key)
-        }
+    private fun requestDashcamThumbnails(retryFailed:Boolean){
+        val day=dashcamDay?:return
+        val media=dashcamItems.filter{dashcamDayKey(it.second)==day&&dashcamGroup(it.first)==dashcamKind}.map{it.second}.take(dashcamVisibleLimit)
+        loadDashcamThumbnails(media,retryFailed)
+    }
+    private fun loadDashcamThumbnails(media:List<DashcamApi.Media>,retryFailed:Boolean){
+        val missingKeys=dashcamThumbnailStates.begin(media.map(::dashcamKey),retryFailed)
+        val missing=media.filter{dashcamKey(it) in missingKeys}
         if(missing.isEmpty())return
         thumbWorker.execute{
             try{
                 dashcamApi.thumbnails(missing).forEach{(media,bytes)->
-                    val key="${media.type}:${media.id}:${media.dateTime}"
+                    val key=dashcamKey(media)
                     val bitmap=BitmapFactory.decodeByteArray(bytes,0,bytes.size)?:return@forEach
                     val disk=File(File(filesDir,"dvr_thumbs").apply{mkdirs()},"${key.hashCode().toUInt().toString(16)}.jpg")
                     try{disk.writeBytes(bytes)}catch(_:Exception){}
                     dashcamThumbs.put(key,bitmap)
+                    dashcamThumbnailStates.ready(key)
                     runOnUiThread{if(!isFinishing)dashcamThumbViews[key]?.setImageBitmap(bitmap)}
                 }
-            }finally{missing.forEach{m->dashcamThumbInFlight.remove("${m.type}:${m.id}:${m.dateTime}")}}
+            }finally{missing.forEach{m->dashcamThumbnailStates.failedIfLoading(dashcamKey(m))}}
         }
     }
     private fun dashcamCacheFile()=File(filesDir,"dvr_cache.json")
@@ -383,26 +391,23 @@ class MainActivity:Activity(){
         try{
             val root=JSONObject(file.readText());val categoryMap=linkedMapOf<String,DashcamApi.Category>()
             val categories=root.optJSONArray("categories")?:JSONArray()
-            for(i in 0 until categories.length()){val j=categories.optJSONObject(i)?:continue;val c=DashcamApi.Category(j.optString("type"),j.optString("label"),j.optString("path"),j.optInt("count",-1));if(c.type.isNotBlank())categoryMap[c.type]=c}
+            for(i in 0 until categories.length()){val j=categories.optJSONObject(i)?:continue;val c=DashcamApi.Category(j.optString("type"),j.optString("label"),j.optString("path"),j.optInt("count",-1));if(c.type.isNotBlank())categoryMap[DashcamIdentity.categoryKey(c)]=c}
             val loaded=mutableListOf<Pair<DashcamApi.Category,DashcamApi.Media>>();val items=root.optJSONArray("items")?:JSONArray()
-            for(i in 0 until items.length()){val j=items.optJSONObject(i)?:continue;val type=j.optString("type");val c=categoryMap[type]?:DashcamApi.Category(type,type,j.optString("path"),-1).also{categoryMap[type]=it};val m=DashcamApi.Media(type,j.optString("id"),j.optString("name"),j.optLong("size"),j.optLong("dateTime"),j.optInt("duration"),j.optString("url"));if(m.name.isNotBlank())loaded.add(c to m)}
+            for(i in 0 until items.length()){val j=items.optJSONObject(i)?:continue;val type=j.optString("type");val path=j.optString("path");val lookup=DashcamIdentity.categoryKey(DashcamApi.Category(type,type,path,-1));val c=categoryMap[lookup]?:DashcamApi.Category(type,type,path,-1).also{categoryMap[lookup]=it};val m=DashcamApi.Media(type,j.optString("id"),j.optString("name"),j.optLong("size"),j.optLong("dateTime"),j.optInt("duration"),j.optString("url"));if(m.name.isNotBlank())loaded.add(c to m)}
             dashcamCategories=categoryMap.values.toList();dashcamItems=loaded.distinctBy{dashcamKey(it.second)}.sortedByDescending{dashcamTime(it.second.dateTime,it.second.name)}
-            dashcamOffsets.clear();val offsets=root.optJSONObject("offsets")?:JSONObject();offsets.keys().forEach{dashcamOffsets[it]=offsets.optInt(it)}
-            dashcamComplete.clear();val complete=root.optJSONArray("complete")?:JSONArray();for(i in 0 until complete.length())dashcamComplete.add(complete.optString(i))
-        }catch(_:Exception){dashcamItems=emptyList();dashcamCategories=emptyList();dashcamOffsets.clear();dashcamComplete.clear()}
+        }catch(_:Exception){dashcamItems=emptyList();dashcamCategories=emptyList()}
     }
     private fun saveDashcamCache(){
         try{
             val root=JSONObject().put("timestamp",System.currentTimeMillis());val categories=JSONArray();dashcamCategories.forEach{categories.put(JSONObject().put("type",it.type).put("label",it.label).put("path",it.path).put("count",it.count))};root.put("categories",categories)
             val items=JSONArray();dashcamItems.forEach{(c,m)->items.put(JSONObject().put("type",c.type).put("path",c.path).put("id",m.id).put("name",m.name).put("size",m.size).put("dateTime",m.dateTime).put("duration",m.duration).put("url",m.url))};root.put("items",items)
-            val offsets=JSONObject();dashcamOffsets.forEach{(k,v)->offsets.put(k,v)};root.put("offsets",offsets);root.put("complete",JSONArray(dashcamComplete.toList()))
             val file=dashcamCacheFile();val temp=File(file.parentFile,"${file.name}.tmp");temp.writeText(root.toString());if(!temp.renameTo(file)){file.writeText(root.toString());temp.delete()}
         }catch(_:Exception){}
     }
-    private fun confirmDashcamCacheReset(){AlertDialog.Builder(this).setTitle("대시캠 캐시 초기화").setMessage("저장된 목록과 썸네일을 지우고 차량에서 전체 내역을 한 번 다시 읽습니다.").setNegativeButton("취소",null).setPositiveButton("전체 다시 읽기"){_,_->dashcamCacheFile().delete();File(filesDir,"dvr_thumbs").listFiles()?.forEach{it.delete()};dashcamThumbs.evictAll();dashcamThumbnailDays.clear();dashcamItems=emptyList();dashcamCategories=emptyList();dashcamOffsets.clear();dashcamComplete.clear();showDashcam(true)}.show()}
+    private fun confirmDashcamCacheReset(){AlertDialog.Builder(this).setTitle("대시캠 캐시 초기화").setMessage("저장된 목록과 썸네일을 지우고 차량에서 전체 내역을 한 번 다시 읽습니다.").setNegativeButton("취소",null).setPositiveButton("전체 다시 읽기"){_,_->dashcamCacheFile().delete();File(filesDir,"dvr_thumbs").listFiles()?.forEach{it.delete()};dashcamThumbs.evictAll();dashcamThumbnailStates.clear();dashcamItems=emptyList();dashcamCategories=emptyList();showDashcam(true)}.show()}
     private fun dvrText(size:Float)=if(carLayout())size*2.0f else size
     /** The vehicle can return a new id for the same physical clip after refresh. */
-    private fun dashcamKey(media:DashcamApi.Media)="${media.type}/${media.name}"
+    private fun dashcamKey(media:DashcamApi.Media)=DashcamIdentity.key(media)
     private fun dashcamGroup(category:DashcamApi.Category)=when(category.type.lowercase(Locale.ROOT)){"emergency"->"긴급";"avm","avm_emergency"->"서라운드";"photo"->"사진";else->"상시"}
     private fun dashcamActions(category:DashcamApi.Category,media:DashcamApi.Media){
         val options=arrayOf("재생 / 보기","P4 Files 다운로드에 저장","저장 위치 선택","Google Drive 업로드","정보")
@@ -420,7 +425,7 @@ class MainActivity:Activity(){
             val dir=File(getExternalFilesDir(null),"Downloads").apply{mkdirs()}
             val safe=media.name.replace(Regex("[^A-Za-z0-9가-힣._-]"),"_")
             val file=File(dir,safe)
-            dashcamApi.withFileList{file.outputStream().use{out->dashcamApi.download(media,out){n->update("${bytes(n)} 받는 중 · ${media.name}")}}}
+            dashcamApi.withFileList("download") {file.outputStream().use{out->dashcamApi.download(media,out){n->update("${bytes(n)} 받는 중 · ${media.name}")}}}
             val uri=FileProvider.getUriForFile(this,"$packageName.files",file)
             runOnUiThread{when{open->openDashcamFile(file,media);upload->uploadFiles(listOf(uri));else->state.text="대시캠 저장 완료: ${media.name}"}}
         }
@@ -682,7 +687,7 @@ class MainActivity:Activity(){
             }
         }
     }
-    private fun downloadAppUpdate(info:UpdateInfo){task("업데이트 다운로드 중"){val file=appUpdater.download(info){done,total->update(if(total>0)"업데이트 ${done*100/total}%" else "업데이트 ${bytes(done)}")};val name="P4-Files-v${info.versionName}.apk";val uri=publishToPublicDownloads(file,name);runOnUiThread{showDownloadedUpdate(uri,name)}}}
+    private fun downloadAppUpdate(info:UpdateInfo){task("업데이트 다운로드 중"){val file=appUpdater.download(info){done,total->update(if(total>0)"업데이트 ${done*100/total}%" else "업데이트 ${bytes(done)}")};val name="P4-Files-v${info.versionName}.apk";val expectedSha=sha256File(file);val uri=publishToPublicDownloads(file,name);if(!verifyStoredApk(uri,file.length(),expectedSha))throw java.io.IOException("공용 Download 저장 검증 실패");runOnUiThread{showDownloadedUpdate(uri,name)}}}
     private fun publishToPublicDownloads(source:File,name:String):Uri{
         if(Build.VERSION.SDK_INT>=29){
             val values=android.content.ContentValues().apply{put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME,name);put(android.provider.MediaStore.MediaColumns.MIME_TYPE,"application/vnd.android.package-archive");put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH,android.os.Environment.DIRECTORY_DOWNLOADS);put(android.provider.MediaStore.MediaColumns.IS_PENDING,1)}
@@ -692,7 +697,7 @@ class MainActivity:Activity(){
         throw java.io.IOException("이 Android 버전에서는 공용 Download 저장을 지원하지 않습니다")
     }
     private fun showDownloadedUpdate(uri:Uri,name:String){
-        pendingInstallUri=uri;state.text="Download/$name 저장 완료"
+        pendingInstallUri=null;state.text="Download/$name 저장 완료"
         val hasSelectedStorage=localPath.isNotEmpty()
         val options=if(hasSelectedStorage)arrayOf("USB/선택 저장소에 저장 후 설치","저장 위치 선택","순정 Download 열기","나중에") else arrayOf("저장 위치 선택","순정 Download 열기","나중에")
         AlertDialog.Builder(this).setTitle("업데이트 다운로드 완료").setMessage("$name\n\nUSB가 연결되어 있으면 선택한 차량 저장소로 복사할 수 있습니다.").setItems(options){_,index->
@@ -709,9 +714,15 @@ class MainActivity:Activity(){
         task("USB에 업데이트 저장 중"){
             val target=targetDir.createFile("application/vnd.android.package-archive",name)?:throw java.io.IOException("선택한 저장소에 APK를 만들 수 없습니다")
             (contentResolver.openInputStream(source)?:throw java.io.IOException("다운로드한 APK를 열 수 없습니다")).use{input->(contentResolver.openOutputStream(target.uri)?:throw java.io.IOException("USB APK 파일을 열 수 없습니다")).use{output->input.copyTo(output)}}
-            runOnUiThread{pendingInstallUri=target.uri;state.text="${targetDir.name}/$name 저장 완료";AlertDialog.Builder(this).setTitle("USB 저장 완료").setMessage("$name\n\n순정 파일 앱에서 이 APK를 열어 설치할 수 있습니다.").setNegativeButton("닫기",null).setPositiveButton("설치 시도"){_,_->installApk(target.uri)}.show()}
+            if(!verifyStoredApk(target.uri,sourceSize(source),uriSha256(source)))throw java.io.IOException("USB 저장 검증 실패")
+            runOnUiThread{pendingInstallUri=null;state.text="${targetDir.name}/$name 저장 완료";AlertDialog.Builder(this).setTitle("USB 저장 완료").setMessage("$name\n\n파일 저장이 완료되었습니다. 설치 성공 여부는 차량 패키지 설치기에서 확인하세요.").setNegativeButton("닫기",null).setPositiveButton("설치 시도"){_,_->installApk(target.uri)}.show()}
         }
     }
+    private fun sourceSize(uri:Uri):Long=contentResolver.query(uri,arrayOf(OpenableColumns.SIZE),null,null,null)?.use{if(it.moveToFirst()&&!it.isNull(0))it.getLong(0) else -1L}?:-1L
+    private fun sha256File(file:File):String=file.inputStream().use{sha256(it)}
+    private fun uriSha256(uri:Uri):String=(contentResolver.openInputStream(uri)?:throw java.io.IOException("APK를 열 수 없습니다")).use{sha256(it)}
+    private fun sha256(input:java.io.InputStream):String{val digest=MessageDigest.getInstance("SHA-256");val buffer=ByteArray(256*1024);while(true){val n=input.read(buffer);if(n<0)break;digest.update(buffer,0,n)};return digest.digest().joinToString(""){"%02x".format(it)} }
+    private fun verifyStoredApk(uri:Uri,expectedSize:Long,expectedSha256:String):Boolean{val actualSize=sourceSize(uri);if(expectedSize<=0L||actualSize!=expectedSize)return false;return uriSha256(uri).equals(expectedSha256,true)}
     private fun chooseUpdateLocation(source:Uri,name:String){pendingUpdateSource=source;pendingUpdateName=name;startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).setType("application/vnd.android.package-archive").putExtra(Intent.EXTRA_TITLE,name),76)}
     private fun openSystemDownloads(){
         val intents=listOf(Intent(android.app.DownloadManager.ACTION_VIEW_DOWNLOADS),Intent(Intent.ACTION_VIEW,android.provider.DocumentsContract.buildDocumentUri("com.android.externalstorage.documents","primary:Download")).setType("vnd.android.document/directory").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
@@ -736,12 +747,12 @@ class MainActivity:Activity(){
             try{finishAuthorization(authorizationClient.getAuthorizationResultFromIntent(d))}catch(e:ApiException){authFailed(classifyAuthorizationError(e),"status=${e.statusCode}: ${e.message.orEmpty()}")}
             return
         }
-        if(c!=RESULT_OK||d==null)return
+        if(c!=RESULT_OK||d==null){if(r==76){pendingUpdateSource=null;pendingUpdateName=null;state.text="업데이트 저장 취소"};return}
         when(r){70->{val u=d.data?:return;try{contentResolver.takePersistableUriPermission(u,Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)}catch(_:SecurityException){};val dir=DocumentFile.fromTreeUri(this,u)?:return;storagePrefs().edit().putString("tree_uri",u.toString()).apply();localPath.clear();localPath.add(dir);if(resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE&&resources.configuration.screenWidthDp>=700)showDualPane()else showLocal()}
             71,72->{val uris=d.clipData?.let{clip->(0 until clip.itemCount).map{clip.getItemAt(it).uri}}?:listOfNotNull(d.data);if(r==72||mode=="drive"||uris.size>1)uploadFiles(uris)else uris.firstOrNull()?.let{localActions(it,"선택한 파일",contentResolver.getType(it)?:"application/octet-stream")}}
             73->{val f=pendingDownload?:return;val uri=d.data?:return;pendingDownload=null;task("파일 저장 중"){(contentResolver.openOutputStream(uri)?:throw java.io.IOException("저장 파일을 열 수 없습니다.")).use{api.download(f.id,it){n->update("${bytes(n)} 저장 중")}};update("저장 완료: ${f.name}")}}
-            75->{val f=pendingDashcam?:return;val uri=d.data?:return;pendingDashcam=null;task("대시캠 저장 중"){dashcamApi.withFileList{(contentResolver.openOutputStream(uri)?:throw java.io.IOException("저장 파일을 열 수 없습니다.")).use{out->dashcamApi.download(f,out){n->update("${bytes(n)} 저장 중 · ${f.name}")}}};update("대시캠 저장 완료: ${f.name}")}}
-            76->{val source=pendingUpdateSource?:return;val name=pendingUpdateName?:"P4-Files-update.apk";val target=d.data?:return;pendingUpdateSource=null;pendingUpdateName=null;task("선택 위치에 업데이트 저장 중"){(contentResolver.openInputStream(source)?:throw java.io.IOException("다운로드한 APK를 열 수 없습니다.")).use{input->(contentResolver.openOutputStream(target)?:throw java.io.IOException("선택한 위치를 열 수 없습니다.")).use{output->input.copyTo(output)}};runOnUiThread{pendingInstallUri=target;state.text="$name 저장 완료";AlertDialog.Builder(this).setTitle("업데이트 저장 완료").setMessage("$name\n\n선택한 위치에 저장했습니다.").setNegativeButton("닫기",null).setPositiveButton("설치 시도"){_,_->installApk(target)}.show()}}}
+            75->{val f=pendingDashcam?:return;val uri=d.data?:return;pendingDashcam=null;task("대시캠 저장 중"){dashcamApi.withFileList("save-to-selected-location"){(contentResolver.openOutputStream(uri)?:throw java.io.IOException("저장 파일을 열 수 없습니다.")).use{out->dashcamApi.download(f,out){n->update("${bytes(n)} 저장 중 · ${f.name}")}}};update("대시캠 저장 완료: ${f.name}")}}
+            76->{val source=pendingUpdateSource?:return;val name=pendingUpdateName?:"P4-Files-update.apk";val target=d.data?:return;pendingUpdateSource=null;pendingUpdateName=null;task("선택 위치에 업데이트 저장 중"){val expectedSize=sourceSize(source);val expectedSha=uriSha256(source);(contentResolver.openInputStream(source)?:throw java.io.IOException("다운로드한 APK를 열 수 없습니다.")).use{input->(contentResolver.openOutputStream(target)?:throw java.io.IOException("선택한 위치를 열 수 없습니다.")).use{output->input.copyTo(output)}};if(!verifyStoredApk(target,expectedSize,expectedSha))throw java.io.IOException("선택 위치 저장 검증 실패");runOnUiThread{pendingInstallUri=null;state.text="$name 저장 완료";AlertDialog.Builder(this).setTitle("업데이트 저장 완료").setMessage("$name\n\n파일 저장이 완료되었습니다. 설치 성공 여부는 차량 패키지 설치기에서 확인하세요.").setNegativeButton("닫기",null).setPositiveButton("설치 시도"){_,_->installApk(target)}.show()}}}
         }
     }
     override fun onDestroy(){cancelled.set(true);vehicleAuthCancel?.set(true);vehicleAuthDialog?.dismiss();handler.removeCallbacks(queueRefresh);worker.shutdownNow();thumbWorker.shutdownNow();dashcamThumbs.evictAll();super.onDestroy()}
