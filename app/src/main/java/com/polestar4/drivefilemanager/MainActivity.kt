@@ -487,6 +487,17 @@ class MainActivity:Activity(){
         player.setMediaItem(androidx.media3.common.MediaItem.fromUri(Uri.fromFile(file)))
         player.prepare();player.playWhenReady=true
     }
+    private fun openLocalVideo(uri:Uri){
+        val player=androidx.media3.exoplayer.ExoPlayer.Builder(this).build()
+        val playerView=androidx.media3.ui.PlayerView(this).apply{this.player=player;setBackgroundColor(Color.BLACK);useController=true}
+        val frame=FrameLayout(this).apply{setBackgroundColor(Color.BLACK);addView(playerView,FrameLayout.LayoutParams(-1,-1))}
+        val dialog=Dialog(this,android.R.style.Theme_Black_NoTitleBar_Fullscreen)
+        frame.addView(playerCloseButton{dialog.dismiss()},FrameLayout.LayoutParams(dp(124),dp(54),Gravity.TOP or Gravity.END).apply{setMargins(0,dp(18),dp(18),0)})
+        dialog.setOnDismissListener{player.release()}
+        dialog.setContentView(frame);dialog.show()
+        player.setMediaItem(androidx.media3.common.MediaItem.fromUri(uri))
+        player.prepare();player.playWhenReady=true
+    }
     private fun playerCloseButton(close:()->Unit)=Button(this).apply{text="✕ 닫기";isAllCaps=false;textSize=15f;setTextColor(Color.WHITE);background=panel(Color.rgb(38,44,52));setOnClickListener{close()}}
     private fun dashcamTime(value:Long,name:String):Long{
         val digits=name.filter{it.isDigit()}
@@ -686,7 +697,11 @@ class MainActivity:Activity(){
         if(localPath.isEmpty()&&!restoreSavedStorage()){chooseFolder();return}
         if(resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE&&resources.configuration.screenWidthDp>=700)showDualPane()else showLocal()
     }
-    private fun chooseFolder(){launch(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION),70)}
+    private fun chooseFolder(){
+        val intent=Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+        if(Build.VERSION.SDK_INT>=26)try{intent.putExtra("android.provider.extra.INITIAL_URI",Uri.parse("content://com.android.externalstorage.documents/root/primary"))}catch(_:Exception){}
+        launch(intent,70)
+    }
     private fun pickFiles(){launch(Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE).putExtra(Intent.EXTRA_ALLOW_MULTIPLE,true).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION),71)}
     private fun pickFilesForDrive(){launch(Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE).putExtra(Intent.EXTRA_ALLOW_MULTIPLE,true).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION),72)}
     private fun launch(intent:Intent,code:Int){try{startActivityForResult(intent,code)}catch(e:Exception){state.text="파일 선택기를 열 수 없습니다: ${e.message}"}}
@@ -708,7 +723,7 @@ class MainActivity:Activity(){
     }
     private fun download(f:DriveApi.DriveFile){TransferManager.enqueueDownload(this,f.id,f.name,f.mime,f.size);state.text="다운로드 대기열 추가: ${f.name}"}
     private fun downloads(){mode="downloads";title.text="다운로드";subtitle.text="이 앱에서 받은 파일";actions.removeAllViews();body.removeAllViews();val list=File(getExternalFilesDir(null),"Downloads").listFiles()?.sortedByDescending{it.lastModified()}.orEmpty();body.addView(text("DOWNLOADED  ·  ${list.size}개",11f,muted).apply{letterSpacing=.06f;setTypeface(null,Typeface.BOLD);setPadding(dp(4),dp(12),0,dp(9))});list.forEach{f->entryRow(f.name,fileBadge(f.name),"${bytes(f.length())}  ·  ${date(f.lastModified())}",false){val uri=FileProvider.getUriForFile(this,"$packageName.files",f);if(f.extension.equals("apk",true))installApk(uri)else{val mime=android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(f.extension.lowercase())?:"application/octet-stream";openUri(uri,mime)}}};if(list.isEmpty())body.addView(text("아직 다운로드한 파일이 없습니다.",16f,muted))}
-    private fun openUri(u:Uri,mime:String?){if(mime=="application/vnd.android.package-archive"){installApk(u);return};try{val intent=Intent(Intent.ACTION_VIEW).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);if(mime==null)intent.data=u else intent.setDataAndType(u,mime);startActivity(intent)}catch(e:ActivityNotFoundException){AlertDialog.Builder(this).setMessage("파일은 저장되어 있습니다. 이 파일을 열 수 있는 앱이 설치되어 있지 않습니다.").setPositiveButton("확인",null).show()}}
+    private fun openUri(u:Uri,mime:String?){if(mime=="application/vnd.android.package-archive"){installApk(u);return};if(mime?.startsWith("video/")==true){openLocalVideo(u);return};try{val intent=Intent(Intent.ACTION_VIEW).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);if(mime==null)intent.data=u else intent.setDataAndType(u,mime);startActivity(intent)}catch(e:ActivityNotFoundException){AlertDialog.Builder(this).setMessage("파일은 저장되어 있습니다. 이 파일을 열 수 있는 앱이 설치되어 있지 않습니다.").setPositiveButton("확인",null).show()}}
     private fun updatePrefs()=getSharedPreferences("p4_update",0)
     private fun updateManifestUrl()=updatePrefs().getString("manifest_url",null)?.trim().orEmpty().ifBlank{BuildConfig.UPDATE_MANIFEST_URL.trim()}
     private fun checkAppUpdate(showLatest:Boolean=true){
@@ -724,7 +739,7 @@ class MainActivity:Activity(){
             }
         }
     }
-    private fun downloadAppUpdate(info:UpdateInfo){task("업데이트 다운로드 중"){val file=appUpdater.download(info){done,total->update(if(total>0)"업데이트 ${done*100/total}%" else "업데이트 ${bytes(done)}")};val name="P4-Files-v${info.versionName}.apk";val expectedSha=sha256File(file);val uri=publishToPublicDownloads(file,name);if(!verifyStoredApk(uri,file.length(),expectedSha))throw java.io.IOException("공용 Download 저장 검증 실패");runOnUiThread{showDownloadedUpdate(uri,name)}}}
+    private fun downloadAppUpdate(info:UpdateInfo){task("업데이트 다운로드 중"){val file=appUpdater.download(info){done,total->update(if(total>0)"업데이트 ${done*100/total}%" else "업데이트 ${bytes(done)}")};val name="P4-Files-v${info.versionName}.apk";val expectedSha=sha256File(file);val local=File(getExternalFilesDir(null),"Downloads/$name").apply{parentFile?.mkdirs()};file.copyTo(local,overwrite=true);val localUri=FileProvider.getUriForFile(this,"$packageName.files",local);if(!verifyStoredApk(localUri,file.length(),expectedSha))throw java.io.IOException("로컬 APK 저장 검증 실패");publishToPublicDownloads(file,name);runOnUiThread{showDownloadedUpdate(localUri,name)}}}
     private fun publishToPublicDownloads(source:File,name:String):Uri{
         if(Build.VERSION.SDK_INT>=29){
             val values=android.content.ContentValues().apply{put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME,name);put(android.provider.MediaStore.MediaColumns.MIME_TYPE,"application/vnd.android.package-archive");put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH,android.os.Environment.DIRECTORY_DOWNLOADS);put(android.provider.MediaStore.MediaColumns.IS_PENDING,1)}
@@ -734,17 +749,8 @@ class MainActivity:Activity(){
         throw java.io.IOException("이 Android 버전에서는 공용 Download 저장을 지원하지 않습니다")
     }
     private fun showDownloadedUpdate(uri:Uri,name:String){
-        pendingInstallUri=null;state.text="Download/$name 저장 완료"
-        val hasSelectedStorage=localPath.isNotEmpty()
-        val options=if(hasSelectedStorage)arrayOf("USB/선택 저장소에 저장 후 설치","저장 위치 선택","순정 Download 열기","나중에") else arrayOf("저장 위치 선택","순정 Download 열기","나중에")
-        AlertDialog.Builder(this).setTitle("업데이트 다운로드 완료").setMessage("$name\n\nUSB가 연결되어 있으면 선택한 차량 저장소로 복사할 수 있습니다.").setItems(options){_,index->
-            val choice=options[index]
-            when(choice){
-                "USB/선택 저장소에 저장 후 설치"->saveUpdateToSelectedStorage(uri,name)
-                "저장 위치 선택"->chooseUpdateLocation(uri,name)
-                "순정 Download 열기"->openSystemDownloads()
-            }
-        }.show()
+        pendingInstallUri=null;state.text="로컬 다운로드 완료: $name"
+        AlertDialog.Builder(this).setTitle("업데이트 준비 완료").setMessage("$name\n\n로컬 저장소에 안전하게 저장했습니다.").setNegativeButton("나중에",null).setNeutralButton("저장 위치 선택"){_,_->chooseUpdateLocation(uri,name)}.setPositiveButton("설치"){_,_->installApk(uri)}.show()
     }
     private fun saveUpdateToSelectedStorage(source:Uri,name:String){
         val targetDir=localPath.lastOrNull()?:return chooseUpdateLocation(source,name)
