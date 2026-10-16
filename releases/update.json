@@ -1,7 +1,7 @@
 {
-  "versionCode": 45,
-  "versionName": "1.35",
-  "apkUrl": "https://github.com/jeonbj005-tech/p4-files/releases/latest/download/P4-Files-v1.35.apk",
-  "sha256": "5B3AB78147A4FA90646BFE261D181E033245874689E5A59B4999D1FDC6436C94",
-  "notes": "달력·영상 목록 독립 스크롤, 월 이동 캐시 우선 표시, 시작 화면 애니메이션 및 UI 정리"
+  "versionCode": 46,
+  "versionName": "1.36",
+  "apkUrl": "https://github.com/jeonbj005-tech/p4-files/releases/latest/download/P4-Files-v1.36.apk",
+  "sha256": "0BCB67DD825EE4AD2FF7158C56940E4C8A566D7BE3052AB807AAA536CF4A2305",
+  "notes": "업데이트 APK를 로컬에 저장하고 바로 설치하는 흐름으로 복구"
 }
