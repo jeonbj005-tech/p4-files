@@ -8,7 +8,7 @@
 
 - 앱: P4 Files, 패키지 `com.polestar4.drivefilemanager`.
 - 차량: Polestar 4, 사용자 진단상 Android 12 / SDK 32. 휴대폰은 Android 16 / SDK 36.
-- 최신 배포 전 기준: v1.37 / versionCode 47, 커밋 `940337e`.
+- 최신 배포: v1.38 / versionCode 48, 커밋 `3008a5a`.
 - 최신 사용자 보고(2026-11-01): 대시캠 영상 열기 때 차량 저장소로 먼저 다운로드되며 바로 재생되길 원함.
 - 근거: 대화의 사용자 관찰, 첨부 사진, 현재 소스 검토. 차량 로그·원본 API 응답·저장장치 대조 자료는 확보하지 못했다.
 
@@ -27,6 +27,7 @@
 
 - 원인 확인: `dashcamPreview()`가 `dashcamDownload(open=true)`를 호출했고, 이 경로는 DVR MP4를 앱의 `Downloads` 폴더에 복사한 뒤 로컬 파일을 재생했다.
 - 수정: 영상은 차량 DVR URL을 ExoPlayer에 직접 전달한다. 사진은 기존 다운로드 후 이미지 표시 흐름을 유지한다. 영상 재생이 닫히거나 실패하면 DVR 파일목록 세션을 정리한다.
+- 빌드: `assembleDebug` 성공, APK 서명 검증 성공. GitHub APK 다운로드본 SHA-256 `DE144D3EF8D07E52D66FD79886589B102BA817639785E72E4131EB7444B5D5AE` 확인.
 - DVR 모드는 재생이 끝날 때까지 유지된다. 직접 스트리밍 중 차량 녹화 동작에 미치는 영향은 실차에서 아직 검증하지 않았다.
 - 저장소(USB/SD) 영상은 `content://` SAF URI를 ExoPlayer에 직접 전달하는 기존 로컬 플레이어 경로를 사용한다.
 
