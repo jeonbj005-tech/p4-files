@@ -8,7 +8,7 @@
 
 - 앱: P4 Files, 패키지 `com.polestar4.drivefilemanager`.
 - 차량: Polestar 4, 사용자 진단상 Android 12 / SDK 32. 휴대폰은 Android 16 / SDK 36.
-- 최신 작업 빌드: v1.39 / versionCode 49. GitHub Release 등록 전.
+- 최신 배포: v1.39 / versionCode 49, 커밋 `42a13b6`.
 - 최신 사용자 보고(2026-11-01): 대시캠 영상 열기 때 차량 저장소로 먼저 다운로드되며 바로 재생되길 원함.
 - 근거: 대화의 사용자 관찰, 첨부 사진, 현재 소스 검토. 차량 로그·원본 API 응답·저장장치 대조 자료는 확보하지 못했다.
 
@@ -39,6 +39,7 @@
 - 제한: DVR이 `newest-first` 정렬을 지키지 않거나 파일 날짜를 해석하지 못하면 조기 종료하지 않고 목록 끝까지 확인한다. 실차 응답 순서와 월 캐시 동작은 아직 차량에서 검증하지 않았다.
 - 검증: `lintDebug`, `assembleDebug` 성공. 변경한 테스트를 포함한 JUnit 4 직접 실행 10개 통과. Gradle `testDebugUnitTest`는 테스트 클래스 로딩 `ClassNotFoundException`으로 초기화 실패했다.
 - APK SHA-256: `A4E290543C9F4BCFF147508B97EAB8932D7ADE89BDA12E2261692C437B8FBBA3`.
+- 배포: [GitHub Release v1.39](https://github.com/jeonbj005-tech/p4-files/releases/tag/v1.39). 최신 manifest와 내려받은 APK의 버전·크기·SHA-256 및 서명을 확인했다.
 
 ### 우선순위와 상태
 
