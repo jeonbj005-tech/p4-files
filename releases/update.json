@@ -1,7 +1,7 @@
 {
-  "versionCode": 47,
-  "versionName": "1.37",
-  "apkUrl": "https://github.com/jeonbj005-tech/p4-files/releases/latest/download/P4-Files-v1.37.apk",
-  "sha256": "E30A17179B7B133A9ED3B1FC29FEEB84D5AD3AC6DA295AC40197D5BB34780FFE",
-  "notes": "SD·USB 영상 앱 내부 재생, 저장소 폴더 선택 보강"
+  "versionCode": 48,
+  "versionName": "1.38",
+  "apkUrl": "https://github.com/jeonbj005-tech/p4-files/releases/latest/download/P4-Files-v1.38.apk",
+  "sha256": "DE144D3EF8D07E52D66FD79886589B102BA817639785E72E4131EB7444B5D5AE",
+  "notes": "대시캠 영상을 차량 저장소에 복사하지 않고 내장 플레이어에서 바로 재생"
 }

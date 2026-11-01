@@ -20,6 +20,8 @@ class DvrSessionManager(
     )
 
     private val lock = Any()
+    private var activeLeases = 0
+    private var ownsFileListMode = false
 
     fun <T> withFileList(reason: String, block: () -> T): T = synchronized(lock) {
         val alreadyInFileList = runCatching { isInFileList() }.getOrDefault(false)
@@ -30,6 +32,7 @@ class DvrSessionManager(
             record("normal", "file-list", reason, "request")
             try {
                 enterFileList()
+                ownsFileListMode = true
                 record("normal", "file-list", reason, "entered")
             } catch (error: Throwable) {
                 record("normal", "file-list", reason, "enter-failed")
@@ -41,11 +44,45 @@ class DvrSessionManager(
             block()
         } finally {
             if (changed) {
-                runCatching { leaveFileList() }
-                    .onSuccess { record("file-list", "normal", reason, "left") }
-                    .onFailure { record("file-list", "normal", reason, "leave-failed") }
+                if (activeLeases == 0) leaveMode(reason)
+                else record("file-list", "file-list", reason, "leave-deferred-active-playback")
             }
         }
+    }
+
+    fun acquireFileList(reason: String): AutoCloseable {
+        synchronized(lock) {
+            if (activeLeases == 0 && !runCatching { isInFileList() }.getOrDefault(false)) {
+                record("normal", "file-list", reason, "lease-request")
+                try {
+                    enterFileList()
+                    ownsFileListMode = true
+                    record("normal", "file-list", reason, "lease-entered")
+                } catch (error: Throwable) {
+                    record("normal", "file-list", reason, "lease-enter-failed")
+                    throw error
+                }
+            }
+            activeLeases++
+            record("file-list", "file-list", reason, "lease-opened")
+        }
+        var closed = false
+        return AutoCloseable {
+            synchronized(lock) {
+                if (!closed) {
+                    closed = true
+                    activeLeases--
+                    if (activeLeases == 0 && ownsFileListMode) leaveMode(reason)
+                    else record("file-list", "file-list", reason, "lease-closed")
+                }
+            }
+        }
+    }
+
+    private fun leaveMode(reason: String) {
+        runCatching { leaveFileList() }
+            .onSuccess { record("file-list", "normal", reason, "left"); ownsFileListMode = false }
+            .onFailure { record("file-list", "normal", reason, "leave-failed") }
     }
 
     private fun record(previous: String, target: String, reason: String, result: String) {

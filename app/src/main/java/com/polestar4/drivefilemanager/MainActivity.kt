@@ -80,6 +80,8 @@ class MainActivity:Activity(){
     private val localPath=mutableListOf<DocumentFile>()
     private var pendingDownload:DriveApi.DriveFile?=null
     private var pendingDashcam:DashcamApi.Media?=null
+    private var dashcamPlaybackLease:AutoCloseable?=null
+    private var dashcamPlaybackDialog:Dialog?=null
     private var pendingUpdateSource:Uri?=null
     private var pendingUpdateName:String?=null
     private var pendingInstallUri:Uri?=null
@@ -456,7 +458,22 @@ class MainActivity:Activity(){
             else->showInfo(media.name,"${dashcamApi.mime(media)} · ${category.label}",media.size,dashcamTime(media.dateTime,media.name))
         }}.show()
     }
-    private fun dashcamPreview(media:DashcamApi.Media){dashcamDownload(media,true,false)}
+    private fun dashcamPreview(media:DashcamApi.Media){
+        if(!dashcamApi.mime(media).startsWith("video/")){dashcamDownload(media,true,false);return}
+        task("대시캠 영상 연결 중"){
+            val lease=dashcamApi.acquirePlaybackSession()
+            runOnUiThread{
+                if(isFinishing){lease.close();return@runOnUiThread}
+                try{
+                    dashcamPlaybackLease=lease
+                    openLocalVideo(Uri.parse(media.url),lease)
+                }catch(error:Exception){
+                    lease.close();dashcamPlaybackLease=null
+                    AlertDialog.Builder(this).setTitle("영상을 열 수 없음").setMessage(error.message?:error.javaClass.simpleName).setPositiveButton("확인",null).show()
+                }
+            }
+        }
+    }
     private fun dashcamDownload(media:DashcamApi.Media,open:Boolean,upload:Boolean){
         task(if(open)"대시캠 재생 준비 중" else "대시캠 저장 중"){
             val dir=File(getExternalFilesDir(null),"Downloads").apply{mkdirs()}
@@ -487,13 +504,22 @@ class MainActivity:Activity(){
         player.setMediaItem(androidx.media3.common.MediaItem.fromUri(Uri.fromFile(file)))
         player.prepare();player.playWhenReady=true
     }
-    private fun openLocalVideo(uri:Uri){
+    private fun openLocalVideo(uri:Uri,playbackLease:AutoCloseable?=null){
         val player=androidx.media3.exoplayer.ExoPlayer.Builder(this).build()
         val playerView=androidx.media3.ui.PlayerView(this).apply{this.player=player;setBackgroundColor(Color.BLACK);useController=true}
         val frame=FrameLayout(this).apply{setBackgroundColor(Color.BLACK);addView(playerView,FrameLayout.LayoutParams(-1,-1))}
         val dialog=Dialog(this,android.R.style.Theme_Black_NoTitleBar_Fullscreen)
         frame.addView(playerCloseButton{dialog.dismiss()},FrameLayout.LayoutParams(dp(124),dp(54),Gravity.TOP or Gravity.END).apply{setMargins(0,dp(18),dp(18),0)})
-        dialog.setOnDismissListener{player.release()}
+        if(playbackLease!=null)dashcamPlaybackDialog=dialog
+        dialog.setOnDismissListener{player.release();playbackLease?.close();if(dashcamPlaybackLease===playbackLease)dashcamPlaybackLease=null;if(dashcamPlaybackDialog===dialog)dashcamPlaybackDialog=null}
+        player.addListener(object:androidx.media3.common.Player.Listener{
+            override fun onPlayerError(error:androidx.media3.common.PlaybackException){
+                if(playbackLease==null)return
+                state.text="차량 영상 재생 실패"
+                dialog.dismiss()
+                AlertDialog.Builder(this@MainActivity).setTitle("차량 영상 재생 실패").setMessage("영상 스트림을 열지 못했습니다. 차량 연결과 영상 형식을 확인하세요.").setPositiveButton("확인",null).show()
+            }
+        })
         dialog.setContentView(frame);dialog.show()
         player.setMediaItem(androidx.media3.common.MediaItem.fromUri(uri))
         player.prepare();player.playWhenReady=true
@@ -798,5 +824,5 @@ class MainActivity:Activity(){
             76->{val source=pendingUpdateSource?:return;val name=pendingUpdateName?:"P4-Files-update.apk";val target=d.data?:return;pendingUpdateSource=null;pendingUpdateName=null;task("선택 위치에 업데이트 저장 중"){val expectedSize=sourceSize(source);val expectedSha=uriSha256(source);(contentResolver.openInputStream(source)?:throw java.io.IOException("다운로드한 APK를 열 수 없습니다.")).use{input->(contentResolver.openOutputStream(target)?:throw java.io.IOException("선택한 위치를 열 수 없습니다.")).use{output->input.copyTo(output)}};if(!verifyStoredApk(target,expectedSize,expectedSha))throw java.io.IOException("선택 위치 저장 검증 실패");runOnUiThread{pendingInstallUri=null;state.text="$name 저장 완료";AlertDialog.Builder(this).setTitle("업데이트 저장 완료").setMessage("$name\n\n파일 저장이 완료되었습니다. 설치 성공 여부는 차량 패키지 설치기에서 확인하세요.").setNegativeButton("닫기",null).setPositiveButton("설치 시도"){_,_->installApk(target)}.show()}}}
         }
     }
-    override fun onDestroy(){cancelled.set(true);vehicleAuthCancel?.set(true);vehicleAuthDialog?.dismiss();handler.removeCallbacks(queueRefresh);worker.shutdownNow();thumbWorker.shutdownNow();dashcamThumbs.evictAll();super.onDestroy()}
+    override fun onDestroy(){dashcamPlaybackDialog?.dismiss();dashcamPlaybackDialog=null;dashcamPlaybackLease?.close();dashcamPlaybackLease=null;cancelled.set(true);vehicleAuthCancel?.set(true);vehicleAuthDialog?.dismiss();handler.removeCallbacks(queueRefresh);worker.shutdownNow();thumbWorker.shutdownNow();dashcamThumbs.evictAll();super.onDestroy()}
 }

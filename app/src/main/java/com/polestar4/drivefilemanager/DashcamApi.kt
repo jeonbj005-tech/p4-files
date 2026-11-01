@@ -82,6 +82,8 @@ class DashcamApi {
 
     fun <T> withFileList(reason:String="file-list", block:()->T):T=sessionManager.withFileList(reason,block)
 
+    fun acquirePlaybackSession():AutoCloseable=sessionManager.acquireFileList("video-playback")
+
     private fun fileListGet(path:String):String{
         try{return get(path)}catch(e:DvrHttpException){
             if(e.code==403||e.detail.contains("NO_FILE_LIST_MODE",true)||e.detail.contains("error\":3")){
