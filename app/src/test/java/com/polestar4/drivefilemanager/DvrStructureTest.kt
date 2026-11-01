@@ -1,12 +1,28 @@
 package com.polestar4.drivefilemanager
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import java.util.concurrent.atomic.AtomicBoolean
 
 class DvrStructureTest {
+    @get:Rule val temporaryFolder = TemporaryFolder()
     private val category = DashcamApi.Category("normal", "상시", "normal", -1)
+
+    @Test fun thumbnailDiskCacheSurvivesRecreationAndReplacement() {
+        val directory = temporaryFolder.newFolder("thumbnails")
+        val first = byteArrayOf(1, 2, 3)
+        ThumbnailDiskCache(directory).write("clip", first)
+        assertArrayEquals(first, ThumbnailDiskCache(directory).read("clip"))
+
+        val replacement = byteArrayOf(4, 5, 6)
+        ThumbnailDiskCache(directory).write("clip", replacement)
+        assertArrayEquals(replacement, ThumbnailDiskCache(directory).read("clip"))
+        assertEquals(1, directory.listFiles()?.count { it.extension == "jpg" })
+    }
 
     private fun media(name: String, id: String, path: String, type: String = "normal") =
         DashcamApi.Media(type, id, name, 100, 1, 1, "http://198.18.37.20/$path/$name")

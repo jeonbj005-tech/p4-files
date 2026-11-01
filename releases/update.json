@@ -1,7 +1,7 @@
 {
-  "versionCode": 49,
-  "versionName": "1.39",
-  "apkUrl": "https://github.com/jeonbj005-tech/p4-files/releases/latest/download/P4-Files-v1.39.apk",
-  "sha256": "A4E290543C9F4BCFF147508B97EAB8932D7ADE89BDA12E2261692C437B8FBBA3",
-  "notes": "DVR 목록을 월 단위로 조회하고 완료된 달은 캐시에서 재사용"
+  "versionCode": 50,
+  "versionName": "1.40",
+  "apkUrl": "https://github.com/jeonbj005-tech/p4-files/releases/latest/download/P4-Files-v1.40.apk",
+  "sha256": "6421EA903DCD0F4F2289F82DBD80C674F3A8AD78AD11951408115D15FF445422",
+  "notes": "대시캠 썸네일을 안전하게 디스크 캐시에 저장하고 재실행 후 복원"
 }

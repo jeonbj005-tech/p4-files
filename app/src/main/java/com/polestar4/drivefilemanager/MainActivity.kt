@@ -45,6 +45,7 @@ class MainActivity:Activity(){
     private enum class SortMode(val label:String){NAME_ASC("이름 A–Z"),NAME_DESC("이름 Z–A"),NEWEST("최신순"),OLDEST("오래된순"),SIZE_DESC("용량 큰순"),SIZE_ASC("용량 작은순")}
     private val api by lazy { DriveApi(this) }
     private val dashcamApi by lazy { DashcamApi() }
+    private val dashcamThumbnailCache by lazy { ThumbnailDiskCache(File(filesDir,"dvr_thumbs")) }
     private val appUpdater by lazy { AppUpdater(this) }
     private val authorizationClient by lazy { Identity.getAuthorizationClient(this) }
     private val worker=Executors.newSingleThreadExecutor()
@@ -236,7 +237,7 @@ class MainActivity:Activity(){
         }
     }
     private fun renderDashcam(items:List<Pair<DashcamApi.Category,DashcamApi.Media>>){
-        dashcamItems=items;mode="dashcam";body.removeAllViews()
+        dashcamItems=items;mode="dashcam";dashcamThumbViews.clear();body.removeAllViews()
         if(dashcamDay==null&&items.isNotEmpty()){
             dashcamDay=dashcamDayKey(items.first().second)
             try{dashcamMonth.time=SimpleDateFormat("yyyy-MM-dd",Locale.KOREA).parse(dashcamDay!!)?:Date()}catch(_:Exception){}
@@ -386,11 +387,16 @@ class MainActivity:Activity(){
     private fun loadDashcamThumbnail(view:ImageView,media:DashcamApi.Media){
         val key=dashcamKey(media)
         dashcamThumbs.get(key)?.let{dashcamThumbnailStates.ready(key);view.setImageBitmap(it);dashcamThumbViews[key]=view;return}
-        val thumbDir=File(filesDir,"dvr_thumbs").apply{mkdirs()}
-        val disk=File(thumbDir,"${key.hashCode().toUInt().toString(16)}.jpg")
-        val legacyDisk=File(thumbDir,"${"${media.type}:${media.id}:${media.dateTime}".hashCode().toUInt().toString(16)}.jpg")
-        if(!disk.exists()&&legacyDisk.exists())legacyDisk.copyTo(disk,overwrite=false)
-        if(disk.exists())BitmapFactory.decodeFile(disk.absolutePath)?.let{dashcamThumbs.put(key,it);dashcamThumbnailStates.ready(key);view.setImageBitmap(it);dashcamThumbViews[key]=view;return}
+        val legacyDisk=File(File(filesDir,"dvr_thumbs"),"${"${media.type}:${media.id}:${media.dateTime}".hashCode().toUInt().toString(16)}.jpg")
+        val cached=try{dashcamThumbnailCache.read(key)}catch(e:Exception){Log.w("P4ThumbCache","read failed key=${key.hashCode().toUInt().toString(16)}",e);null}
+        val cachedBitmap=cached?.let{BitmapFactory.decodeByteArray(it,0,it.size)}
+        if(cached!=null&&cachedBitmap==null){dashcamThumbnailCache.delete(key);Log.w("P4ThumbCache","discarded corrupt entry key=${key.hashCode().toUInt().toString(16)}")}
+        val legacy=if(cachedBitmap==null)try{legacyDisk.takeIf{it.isFile}?.readBytes()}catch(e:Exception){Log.w("P4ThumbCache","legacy read failed",e);null}else null
+        val bitmap=cachedBitmap?:legacy?.let{BitmapFactory.decodeByteArray(it,0,it.size)}
+        if(bitmap!=null){
+            if(cachedBitmap==null&&legacy!=null)try{dashcamThumbnailCache.write(key,legacy)}catch(e:Exception){Log.w("P4ThumbCache","migration write failed key=${key.hashCode().toUInt().toString(16)}",e)}
+            dashcamThumbs.put(key,bitmap);dashcamThumbnailStates.ready(key);view.setImageBitmap(bitmap);dashcamThumbViews[key]=view;return
+        }
         dashcamThumbnailStates.markMissing(key)
         dashcamThumbViews[key]=view
     }
@@ -408,8 +414,7 @@ class MainActivity:Activity(){
                 dashcamApi.thumbnails(missing).forEach{(media,bytes)->
                     val key=dashcamKey(media)
                     val bitmap=BitmapFactory.decodeByteArray(bytes,0,bytes.size)?:return@forEach
-                    val disk=File(File(filesDir,"dvr_thumbs").apply{mkdirs()},"${key.hashCode().toUInt().toString(16)}.jpg")
-                    try{disk.writeBytes(bytes)}catch(_:Exception){}
+                    try{dashcamThumbnailCache.write(key,bytes)}catch(e:Exception){Log.w("P4ThumbCache","write failed key=${key.hashCode().toUInt().toString(16)}",e)}
                     dashcamThumbs.put(key,bitmap)
                     dashcamThumbnailStates.ready(key)
                     runOnUiThread{if(!isFinishing)dashcamThumbViews[key]?.setImageBitmap(bitmap)}
