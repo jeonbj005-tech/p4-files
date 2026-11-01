@@ -88,4 +88,35 @@ class DvrStructureTest {
         val result = DvrSnapshotReconciler.reconcile(listOf(category to cached), listOf(snapshot(listOf(partial), false)))
         assertEquals(2, result.size)
     }
+
+    @Test fun monthScanStopsAfterVerifiedOlderPage() {
+        val requestedOffsets = mutableListOf<Int>()
+        val currentMonth = (0 until 200).map { index ->
+            val time = if (index == 0) 190L else if (index == 1) 180L else 90L
+            DashcamApi.Media("normal", "id-$index", "clip-$index.mp4", 1, time, 0, "http://dvr/clip-$index.mp4")
+        }
+        val olderMonth = (0 until 200).map { index ->
+            DashcamApi.Media("normal", "old-$index", "old-$index.mp4", 1, 50, 0, "http://dvr/old-$index.mp4")
+        }
+        val result = DvrMonthScanner.scan(100, 200, { it.dateTime }, { offset, _ ->
+            requestedOffsets += offset
+            if (offset == 0) currentMonth else olderMonth
+        })
+        assertTrue(result.complete)
+        assertEquals(listOf(0, 200), requestedOffsets)
+        assertEquals(listOf("clip-0.mp4", "clip-1.mp4"), result.items.map { it.name })
+    }
+
+    @Test fun completedMonthRefreshPreservesOtherMonths() {
+        val oldMonth = media("NOR_20261031_235900_0000.MP4", "old", "normal")
+        val stale = media("NOR_20261101_080000_0000.MP4", "stale", "normal")
+        val fresh = media("NOR_20261102_090000_0000.MP4", "fresh", "normal")
+        val result = DvrSnapshotReconciler.reconcileMonth(
+            listOf(category to oldMonth, category to stale),
+            listOf(DvrSnapshotReconciler.CategorySnapshot(DashcamIdentity.categoryKey(category), listOf(category to fresh), true)),
+            100,
+            200
+        ) { if (it.name == stale.name || it.name == fresh.name) 150 else 50 }
+        assertEquals(setOf(oldMonth.name, fresh.name), result.map { it.second.name }.toSet())
+    }
 }

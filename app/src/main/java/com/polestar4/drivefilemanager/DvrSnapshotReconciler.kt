@@ -24,6 +24,25 @@ object DvrSnapshotReconciler {
         return unique(byCategory.values.flatten())
     }
 
+    fun reconcileMonth(
+        cached: List<Pair<DashcamApi.Category, DashcamApi.Media>>,
+        snapshots: List<CategorySnapshot>,
+        startMillis: Long,
+        endMillis: Long,
+        timeOf: (DashcamApi.Media) -> Long
+    ): List<Pair<DashcamApi.Category, DashcamApi.Media>> {
+        val byCategory = cached.groupBy { DashcamIdentity.categoryKey(it.first) }.toMutableMap()
+        snapshots.forEach { snapshot ->
+            val existing = byCategory[snapshot.categoryKey].orEmpty()
+            byCategory[snapshot.categoryKey] = if (snapshot.complete) {
+                existing.filterNot { timeOf(it.second) in startMillis until endMillis } + snapshot.items
+            } else {
+                existing + snapshot.items
+            }
+        }
+        return unique(byCategory.values.flatten())
+    }
+
     private fun unique(items: List<Pair<DashcamApi.Category, DashcamApi.Media>>) =
         items.distinctBy { DashcamIdentity.key(it.second) }
 }

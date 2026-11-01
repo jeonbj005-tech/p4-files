@@ -1,7 +1,7 @@
 {
-  "versionCode": 48,
-  "versionName": "1.38",
-  "apkUrl": "https://github.com/jeonbj005-tech/p4-files/releases/latest/download/P4-Files-v1.38.apk",
-  "sha256": "DE144D3EF8D07E52D66FD79886589B102BA817639785E72E4131EB7444B5D5AE",
-  "notes": "대시캠 영상을 차량 저장소에 복사하지 않고 내장 플레이어에서 바로 재생"
+  "versionCode": 49,
+  "versionName": "1.39",
+  "apkUrl": "https://github.com/jeonbj005-tech/p4-files/releases/latest/download/P4-Files-v1.39.apk",
+  "sha256": "A4E290543C9F4BCFF147508B97EAB8932D7ADE89BDA12E2261692C437B8FBBA3",
+  "notes": "DVR 목록을 월 단위로 조회하고 완료된 달은 캐시에서 재사용"
 }

@@ -87,6 +87,7 @@ class MainActivity:Activity(){
     private var pendingInstallUri:Uri?=null
     private var dashcamItems=listOf<Pair<DashcamApi.Category,DashcamApi.Media>>()
     private var dashcamCategories=listOf<DashcamApi.Category>()
+    private val dashcamScannedMonths=linkedSetOf<String>()
     private var dashcamDay:String?=null
     private var dashcamKind="상시"
     private var dashcamVisibleLimit=50
@@ -184,7 +185,7 @@ class MainActivity:Activity(){
         if(dashcamDay==null)dashcamDay=SimpleDateFormat("yyyy-MM-dd",Locale.KOREA).format(Date())
         renderDashcam(dashcamItems)
         if(dashcamCacheLoaded){
-            if(loadFromVehicle)loadDashcamMonth() else state.text="저장된 기록 ${dashcamItems.size}개 · 최신 기록은 새로고침"
+            if(loadFromVehicle)loadDashcamMonth(force=true) else state.text="저장된 기록 ${dashcamItems.size}개 · 최신 기록은 새로고침"
         }else{
             state.text="캐시 읽는 중…"
             worker.execute{
@@ -192,12 +193,14 @@ class MainActivity:Activity(){
                 runOnUiThread{
                     dashcamCacheLoaded=true
                     renderDashcam(dashcamItems)
-                    if(loadFromVehicle)loadDashcamMonth() else state.text="저장된 기록 ${dashcamItems.size}개 · 최신 기록은 새로고침"
+                    if(loadFromVehicle)loadDashcamMonth(force=true) else state.text="저장된 기록 ${dashcamItems.size}개 · 최신 기록은 새로고침"
                 }
             }
         }
     }
-    private fun loadDashcamMonth(showLoading:Boolean=true){
+    private fun loadDashcamMonth(force:Boolean=false,showLoading:Boolean=true){
+        val monthKey=SimpleDateFormat("yyyy-MM",Locale.KOREA).format(dashcamMonth.time)
+        if(!force&&monthKey in dashcamScannedMonths){dashcamLoading=false;state.text="저장된 ${monthKey.substring(5)}월 기록 표시 · 새로고침하면 최신화";return}
         dashcamLoading=showLoading
         if(showLoading)renderDashcam(dashcamItems)
         val targetStart=java.util.Calendar.getInstance().apply{timeInMillis=dashcamMonth.timeInMillis;set(java.util.Calendar.DAY_OF_MONTH,1);set(java.util.Calendar.HOUR_OF_DAY,0);set(java.util.Calendar.MINUTE,0);set(java.util.Calendar.SECOND,0);set(java.util.Calendar.MILLISECOND,0)}.timeInMillis
@@ -208,29 +211,19 @@ class MainActivity:Activity(){
                 val snapshots=dashcamApi.withFileList("explicit-month-refresh") {
                 if(dashcamCategories.isEmpty())dashcamCategories=dashcamApi.categories()
                 dashcamCategories.map{category->
-                    val collected=mutableListOf<Pair<DashcamApi.Category,DashcamApi.Media>>()
-                    val seenInSnapshot=HashSet<String>()
-                    var offset=0
-                    var repeatedPages=0
-                    var complete=false
-                    while(offset<=100_000){
-                        val page=dashcamApi.list(category,offset,200)
-                        if(page.isEmpty()){complete=true;break}
-                        val unique=page.filter{seenInSnapshot.add(dashcamKey(it))}
-                        collected.addAll(unique.map{category to it})
-                        update("${category.label} ${offset+page.size}개 확인 · ${dashcamMonth.get(java.util.Calendar.MONTH)+1}월 조회 중…")
-                        if(page.size<200){complete=true;break}
-                        if(unique.isEmpty())repeatedPages++ else repeatedPages=0
-                        if(repeatedPages>=3)break
-                        offset+=page.size
+                    val scan=DvrMonthScanner.scan(targetStart,targetEnd,{dashcamTime(it.dateTime,it.name)},{offset,count->dashcamApi.list(category,offset,count)}){scanned->
+                        update("${category.label} ${scanned}개 확인 · ${dashcamMonth.get(java.util.Calendar.MONTH)+1}월 조회 중…")
                     }
-                    DvrSnapshotReconciler.CategorySnapshot(DashcamIdentity.categoryKey(category),collected,complete)
+                    DvrSnapshotReconciler.CategorySnapshot(DashcamIdentity.categoryKey(category),scan.items.map{category to it},scan.complete)
                 }
                 }
                 if(generation!=dashcamRefreshGeneration)return@task
-                val items=DvrSnapshotReconciler.reconcile(dashcamItems,snapshots)
+                val items=DvrSnapshotReconciler.reconcileMonth(dashcamItems,snapshots,targetStart,targetEnd){dashcamTime(it.dateTime,it.name)}
                     .sortedByDescending{dashcamTime(it.second.dateTime,it.second.name)}
-                dashcamItems=items;dashcamCacheLoaded=true;saveDashcamCache()
+                val monthComplete=snapshots.isNotEmpty()&&snapshots.all{it.complete}
+                dashcamItems=items;dashcamCacheLoaded=true
+                if(monthComplete)dashcamScannedMonths.add(monthKey)
+                saveDashcamCache()
                 runOnUiThread{
                     dashcamLoading=false
                     selectDashcamDayAfterLoad(items,targetStart,targetEnd)
@@ -307,9 +300,9 @@ class MainActivity:Activity(){
     }
     private fun renderDashcamMonth(host:LinearLayout){
         val header=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL}
-        header.addView(button("◀"){dashcamMonth.add(java.util.Calendar.MONTH,-1);dashcamVisibleLimit=50;selectCachedDashcamDay();renderDashcam(dashcamItems);state.text="저장된 ${dashcamMonth.get(java.util.Calendar.MONTH)+1}월 기록 표시 · 최신화 중";loadDashcamMonth(false)},LinearLayout.LayoutParams(dp(if(carLayout())78 else 58),dp(if(carLayout())58 else 42)))
+        header.addView(button("◀"){dashcamMonth.add(java.util.Calendar.MONTH,-1);dashcamVisibleLimit=50;selectCachedDashcamDay();renderDashcam(dashcamItems);state.text="저장된 ${dashcamMonth.get(java.util.Calendar.MONTH)+1}월 기록 표시 · 최신화 중";loadDashcamMonth(showLoading=false)},LinearLayout.LayoutParams(dp(if(carLayout())78 else 58),dp(if(carLayout())58 else 42)))
         header.addView(text(String.format(Locale.KOREA,"%d년 %d월",dashcamMonth.get(java.util.Calendar.YEAR),dashcamMonth.get(java.util.Calendar.MONTH)+1),dvrText(24f)).apply{gravity=Gravity.CENTER;setTypeface(null,Typeface.BOLD)},LinearLayout.LayoutParams(0,dp(if(carLayout())70 else 56),1f))
-        header.addView(button("▶"){dashcamMonth.add(java.util.Calendar.MONTH,1);dashcamVisibleLimit=50;selectCachedDashcamDay();renderDashcam(dashcamItems);state.text="저장된 ${dashcamMonth.get(java.util.Calendar.MONTH)+1}월 기록 표시 · 최신화 중";loadDashcamMonth(false)},LinearLayout.LayoutParams(dp(if(carLayout())78 else 58),dp(if(carLayout())58 else 42)))
+        header.addView(button("▶"){dashcamMonth.add(java.util.Calendar.MONTH,1);dashcamVisibleLimit=50;selectCachedDashcamDay();renderDashcam(dashcamItems);state.text="저장된 ${dashcamMonth.get(java.util.Calendar.MONTH)+1}월 기록 표시 · 최신화 중";loadDashcamMonth(showLoading=false)},LinearLayout.LayoutParams(dp(if(carLayout())78 else 58),dp(if(carLayout())58 else 42)))
         host.addView(header)
         val weekdays=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL}
         arrayOf("일","월","화","수","목","금","토").forEachIndexed{i,label->weekdays.addView(text(label,dvrText(14f),when(i){0->Color.rgb(255,120,120);6->Color.rgb(110,175,255);else->muted}).apply{gravity=Gravity.CENTER;setTypeface(null,Typeface.BOLD)},LinearLayout.LayoutParams(0,dp(if(carLayout())48 else 38),1f))}
@@ -426,24 +419,26 @@ class MainActivity:Activity(){
     }
     private fun dashcamCacheFile()=File(filesDir,"dvr_cache.json")
     private fun loadDashcamCache(){
+        dashcamScannedMonths.clear()
         val file=dashcamCacheFile();if(!file.exists())return
         try{
             val root=JSONObject(file.readText());val categoryMap=linkedMapOf<String,DashcamApi.Category>()
+            val scannedMonths=root.optJSONArray("scannedMonths")?:JSONArray();for(i in 0 until scannedMonths.length())scannedMonths.optString(i).takeIf{it.matches(Regex("\\d{4}-\\d{2}"))}?.let{dashcamScannedMonths.add(it)}
             val categories=root.optJSONArray("categories")?:JSONArray()
             for(i in 0 until categories.length()){val j=categories.optJSONObject(i)?:continue;val c=DashcamApi.Category(j.optString("type"),j.optString("label"),j.optString("path"),j.optInt("count",-1));if(c.type.isNotBlank())categoryMap[DashcamIdentity.categoryKey(c)]=c}
             val loaded=mutableListOf<Pair<DashcamApi.Category,DashcamApi.Media>>();val items=root.optJSONArray("items")?:JSONArray()
             for(i in 0 until items.length()){val j=items.optJSONObject(i)?:continue;val type=j.optString("type");val path=j.optString("path");val lookup=DashcamIdentity.categoryKey(DashcamApi.Category(type,type,path,-1));val c=categoryMap[lookup]?:DashcamApi.Category(type,type,path,-1).also{categoryMap[lookup]=it};val m=DashcamApi.Media(type,j.optString("id"),j.optString("name"),j.optLong("size"),j.optLong("dateTime"),j.optInt("duration"),j.optString("url"));if(m.name.isNotBlank())loaded.add(c to m)}
             dashcamCategories=categoryMap.values.toList();dashcamItems=loaded.distinctBy{dashcamKey(it.second)}.sortedByDescending{dashcamTime(it.second.dateTime,it.second.name)}
-        }catch(_:Exception){dashcamItems=emptyList();dashcamCategories=emptyList()}
+        }catch(_:Exception){dashcamItems=emptyList();dashcamCategories=emptyList();dashcamScannedMonths.clear()}
     }
     private fun saveDashcamCache(){
         try{
-            val root=JSONObject().put("timestamp",System.currentTimeMillis());val categories=JSONArray();dashcamCategories.forEach{categories.put(JSONObject().put("type",it.type).put("label",it.label).put("path",it.path).put("count",it.count))};root.put("categories",categories)
+            val root=JSONObject().put("timestamp",System.currentTimeMillis());val categories=JSONArray();dashcamCategories.forEach{categories.put(JSONObject().put("type",it.type).put("label",it.label).put("path",it.path).put("count",it.count))};root.put("categories",categories);root.put("scannedMonths",JSONArray().also{months->dashcamScannedMonths.forEach(months::put)})
             val items=JSONArray();dashcamItems.forEach{(c,m)->items.put(JSONObject().put("type",c.type).put("path",c.path).put("id",m.id).put("name",m.name).put("size",m.size).put("dateTime",m.dateTime).put("duration",m.duration).put("url",m.url))};root.put("items",items)
             val file=dashcamCacheFile();val temp=File(file.parentFile,"${file.name}.tmp");temp.writeText(root.toString());if(!temp.renameTo(file)){file.writeText(root.toString());temp.delete()}
         }catch(_:Exception){}
     }
-    private fun confirmDashcamCacheReset(){AlertDialog.Builder(this).setTitle("대시캠 캐시 초기화").setMessage("저장된 목록과 썸네일을 지우고 차량에서 전체 내역을 한 번 다시 읽습니다.").setNegativeButton("취소",null).setPositiveButton("전체 다시 읽기"){_,_->dashcamCacheFile().delete();File(filesDir,"dvr_thumbs").listFiles()?.forEach{it.delete()};dashcamThumbs.evictAll();dashcamThumbnailStates.clear();dashcamItems=emptyList();dashcamCategories=emptyList();showDashcam(true)}.show()}
+    private fun confirmDashcamCacheReset(){AlertDialog.Builder(this).setTitle("대시캠 캐시 초기화").setMessage("저장된 목록과 썸네일을 지우고 현재 선택된 달의 기록을 다시 읽습니다.").setNegativeButton("취소",null).setPositiveButton("이 달 다시 읽기"){_,_->dashcamCacheFile().delete();File(filesDir,"dvr_thumbs").listFiles()?.forEach{it.delete()};dashcamThumbs.evictAll();dashcamThumbnailStates.clear();dashcamItems=emptyList();dashcamCategories=emptyList();dashcamScannedMonths.clear();showDashcam(true)}.show()}
     private fun dvrText(size:Float)=if(carLayout())size*2.0f else size
     /** The vehicle can return a new id for the same physical clip after refresh. */
     private fun dashcamKey(media:DashcamApi.Media)=DashcamIdentity.key(media)
