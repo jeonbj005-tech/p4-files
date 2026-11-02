@@ -1,7 +1,7 @@
 {
-  "versionCode": 50,
-  "versionName": "1.40",
-  "apkUrl": "https://github.com/jeonbj005-tech/p4-files/releases/latest/download/P4-Files-v1.40.apk",
-  "sha256": "6421EA903DCD0F4F2289F82DBD80C674F3A8AD78AD11951408115D15FF445422",
-  "notes": "대시캠 썸네일을 안전하게 디스크 캐시에 저장하고 재실행 후 복원"
+  "versionCode": 51,
+  "versionName": "1.41",
+  "apkUrl": "https://github.com/jeonbj005-tech/p4-files/releases/latest/download/P4-Files-v1.41.apk",
+  "sha256": "FB81C74E4080E56F8FE842A46B01318B1EFBB99856F2D35E83A7EB501A96248F",
+  "notes": "앱 시작 시 현재 달 DVR 목록을 1회 갱신하고 선택 날짜 썸네일을 준비"
 }
