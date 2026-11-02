@@ -6,7 +6,7 @@
 - 썸네일: 조회 후 선택 날짜·활성 종류에서 누락된 최대 50개만 한 번 요청한다. 오늘 기록이 없으면 최신 기록 날짜를 선택한다.
 - 검증: `lintDebug`, `assembleDebug`, `assembleRelease` 통과. BuildConfig에 GitHub 최신 manifest URL이 포함되는 것 확인.
 - 산출물: `releases/P4-Files-v1.43.apk`, SHA-256 `DA430EC0464D5B80E449342043EEBC891E0BBF7EA264C7FDBA2B224A68C82AB1`.
-- 배포 준비: versionCode 53 manifest와 APK를 v1.43 Release에 올릴 예정.
+- 배포: https://github.com/jeonbj005-tech/p4-files/releases/tag/v1.43. 공개 최신 manifest 및 APK의 versionCode 53 / SHA-256 일치 확인.
 - 서명: 차량 설치본과 동일한 SHA-1 `A2:18:83:47:12:EC:30:FE:C4:8E:D5:C4:56:04:8E:FA:E4:9C:2E:3A`.
 - 차량 검증 필요: 시작 시 현재 달 갱신, 선택 날짜 썸네일 유지/로드, DVR 조회 중 녹화 영향.
 - 업데이트: v1.31에서 쓰던 순정 Download 설치 동선을 복구했다. APK를 공용 Download에 저장하고 SHA-256 확인 후 순정 다운로드 앱을 연다. P4 Files에서 설치를 직접 요청하지 않는다.
