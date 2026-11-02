@@ -26,7 +26,7 @@
 
 - 앱: P4 Files, 패키지 `com.polestar4.drivefilemanager`.
 - 차량: Polestar 4, 사용자 진단상 Android 12 / SDK 32. 휴대폰은 Android 16 / SDK 36.
-- 최신 배포: v1.41 / versionCode 51, GitHub Release 등록 예정. 실차 확인 대기.
+- 최신 배포: v1.41 / versionCode 51, [GitHub Release](https://github.com/jeonbj005-tech/p4-files/releases/tag/v1.41). 실차 확인 대기.
 - 최신 사용자 보고(2026-11-01): 대시캠 영상 열기 때 차량 저장소로 먼저 다운로드되며 바로 재생되길 원함.
 - 근거: 대화의 사용자 관찰, 첨부 사진, 현재 소스 검토. 차량 로그·원본 API 응답·저장장치 대조 자료는 확보하지 못했다.
 
