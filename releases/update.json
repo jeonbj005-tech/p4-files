@@ -1,7 +1,7 @@
 {
-  "versionCode": 52,
-  "versionName": "1.42",
-  "apkUrl": "https://github.com/jeonbj005-tech/p4-files/releases/latest/download/P4-Files-v1.42.apk",
-  "sha256": "26C9CCD848F38EA0026C9D24DB663E8DB825AE7DB2B2787348F140D7E49E76E9",
-  "notes": "차량용 업데이트를 순정 Download 앱을 통한 설치 흐름으로 복구"
+  "versionCode": 53,
+  "versionName": "1.43",
+  "apkUrl": "https://github.com/jeonbj005-tech/p4-files/releases/latest/download/P4-Files-v1.43.apk",
+  "sha256": "DA430EC0464D5B80E449342043EEBC891E0BBF7EA264C7FDBA2B224A68C82AB1",
+  "notes": "업데이트 최신 manifest 주소를 앱에 기본 포함하여 주소 입력을 제거"
 }

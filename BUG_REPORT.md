@@ -137,6 +137,8 @@
 - 회귀 원인 확인: v1.31(`c5f7dbc`)은 공용 `Download` 저장 뒤 순정 다운로드 앱을 여는 동선이었다. v1.37(`940337e`)에서 업데이트 완료 화면이 앱 전용 `FileProvider` URI를 `ACTION_INSTALL_PACKAGE`에 바로 넘기는 동선으로 바뀌어 차량의 출처별 설치 제한에 다시 걸릴 수 있었다.
 - v1.42 수정: 공용 `Download` 사본의 크기와 SHA-256까지 확인한 뒤 순정 Download 화면을 기본으로 연다. USB/사용자 지정 저장은 유지하고, 해당 저장본도 P4 Files에서 설치 요청하지 않고 순정 파일 앱으로 열도록 안내한다.
 - 차량 검증 필요: `ACTION_VIEW_DOWNLOADS`가 Polestar 4에서 처리되는지, 순정 Download 앱에서 APK 설치가 허용되는지는 실차 확인 전까지 미검증이다.
+- v1.42 현장 확인: 차량에서 `업데이트 주소 설정` 대화상자가 노출됨. 원인은 빌드 시 `update.properties`가 없으면 `UPDATE_MANIFEST_URL`을 빈 문자열로 생성한 것. v1.43부터 실제 GitHub 최신 manifest URL을 기본 내장한다.
+- v1.43 수정: `update.properties`가 없거나 manifestUrl이 비어도 GitHub 최신 manifest 주소를 사용한다. 차량에서 첫 업데이트를 진행할 때는 현재 v1.42 설정 창에 `https://github.com/jeonbj005-tech/p4-files/releases/latest/download/update.json`을 한 번 입력하면 v1.43을 받을 수 있다.
 
 ### UI-001 / AUTH-001 — 이전 보고 통합
 

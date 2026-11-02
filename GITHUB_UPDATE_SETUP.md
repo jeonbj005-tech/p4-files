@@ -27,16 +27,15 @@ P4 Files v1.25부터 Google Drive 권한과 무관한 HTTPS 업데이트를 지�
 
 `OWNER`와 `REPOSITORY`는 실제 GitHub 계정과 저장소 이름으로 바꾼다. 임의 값으로 APK에 내장하지 않는다.
 
-## 3. 차량에서 최초 설정
+## 3. 업데이트 주소
 
-1. P4 Files의 대시캠 화면에서 `앱 업데이트`를 누른다.
-2. 다음 형식의 주소를 입력한다.
+기본 GitHub 저장소의 최신 manifest 주소는 APK에 내장되어 있어 차량에서 입력할 필요가 없다. 다른 저장소를 사용할 때만 `update.properties`로 덮어쓴다.
 
 ```text
-https://github.com/OWNER/REPOSITORY/releases/latest/download/update.json
+https://github.com/jeonbj005-tech/p4-files/releases/latest/download/update.json
 ```
 
-3. 이후에는 `앱 업데이트`만 누르면 최신 버전을 확인한다.
+차량에서는 P4 Files의 `앱 업데이트`를 눌러 최신 버전을 확인한다.
 
 ## 4. 업데이트 동작
 
