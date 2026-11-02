@@ -1,7 +1,7 @@
 {
-  "versionCode": 51,
-  "versionName": "1.41",
-  "apkUrl": "https://github.com/jeonbj005-tech/p4-files/releases/latest/download/P4-Files-v1.41.apk",
-  "sha256": "FB81C74E4080E56F8FE842A46B01318B1EFBB99856F2D35E83A7EB501A96248F",
-  "notes": "앱 시작 시 현재 달 DVR 목록을 1회 갱신하고 선택 날짜 썸네일을 준비"
+  "versionCode": 52,
+  "versionName": "1.42",
+  "apkUrl": "https://github.com/jeonbj005-tech/p4-files/releases/latest/download/P4-Files-v1.42.apk",
+  "sha256": "26C9CCD848F38EA0026C9D24DB663E8DB825AE7DB2B2787348F140D7E49E76E9",
+  "notes": "차량용 업데이트를 순정 Download 앱을 통한 설치 흐름으로 복구"
 }

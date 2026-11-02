@@ -782,7 +782,7 @@ class MainActivity:Activity(){
             }
         }
     }
-    private fun downloadAppUpdate(info:UpdateInfo){task("업데이트 다운로드 중"){val file=appUpdater.download(info){done,total->update(if(total>0)"업데이트 ${done*100/total}%" else "업데이트 ${bytes(done)}")};val name="P4-Files-v${info.versionName}.apk";val expectedSha=sha256File(file);val local=File(getExternalFilesDir(null),"Downloads/$name").apply{parentFile?.mkdirs()};file.copyTo(local,overwrite=true);val localUri=FileProvider.getUriForFile(this,"$packageName.files",local);if(!verifyStoredApk(localUri,file.length(),expectedSha))throw java.io.IOException("로컬 APK 저장 검증 실패");publishToPublicDownloads(file,name);runOnUiThread{showDownloadedUpdate(localUri,name)}}}
+    private fun downloadAppUpdate(info:UpdateInfo){task("업데이트 다운로드 중"){val file=appUpdater.download(info){done,total->update(if(total>0)"업데이트 ${done*100/total}%" else "업데이트 ${bytes(done)}")};val name="P4-Files-v${info.versionName}.apk";val expectedSha=sha256File(file);val local=File(getExternalFilesDir(null),"Downloads/$name").apply{parentFile?.mkdirs()};file.copyTo(local,overwrite=true);val localUri=FileProvider.getUriForFile(this,"$packageName.files",local);if(!verifyStoredApk(localUri,file.length(),expectedSha))throw java.io.IOException("로컬 APK 저장 검증 실패");val publicUri=publishToPublicDownloads(file,name);if(!verifyStoredApk(publicUri,file.length(),expectedSha)){contentResolver.delete(publicUri,null,null);throw java.io.IOException("공용 Download APK 저장 검증 실패")};runOnUiThread{showDownloadedUpdate(publicUri,name)}}}
     private fun publishToPublicDownloads(source:File,name:String):Uri{
         if(Build.VERSION.SDK_INT>=29){
             val values=android.content.ContentValues().apply{put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME,name);put(android.provider.MediaStore.MediaColumns.MIME_TYPE,"application/vnd.android.package-archive");put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH,android.os.Environment.DIRECTORY_DOWNLOADS);put(android.provider.MediaStore.MediaColumns.IS_PENDING,1)}
@@ -792,8 +792,8 @@ class MainActivity:Activity(){
         throw java.io.IOException("이 Android 버전에서는 공용 Download 저장을 지원하지 않습니다")
     }
     private fun showDownloadedUpdate(uri:Uri,name:String){
-        pendingInstallUri=null;state.text="로컬 다운로드 완료: $name"
-        AlertDialog.Builder(this).setTitle("업데이트 준비 완료").setMessage("$name\n\n로컬 저장소에 안전하게 저장했습니다.").setNegativeButton("나중에",null).setNeutralButton("저장 위치 선택"){_,_->chooseUpdateLocation(uri,name)}.setPositiveButton("설치"){_,_->installApk(uri)}.show()
+        pendingInstallUri=null;state.text="Download/$name 저장 완료"
+        AlertDialog.Builder(this).setTitle("업데이트 다운로드 완료").setMessage("$name\n\n차량 순정 파일 앱의 Download에서 APK를 열어 설치하세요.").setNegativeButton("나중에",null).setNeutralButton("저장 위치 선택"){_,_->chooseUpdateLocation(uri,name)}.setPositiveButton("순정 Download 열기"){_,_->openSystemDownloads()}.show()
     }
     private fun saveUpdateToSelectedStorage(source:Uri,name:String){
         val targetDir=localPath.lastOrNull()?:return chooseUpdateLocation(source,name)
@@ -801,7 +801,7 @@ class MainActivity:Activity(){
             val target=targetDir.createFile("application/vnd.android.package-archive",name)?:throw java.io.IOException("선택한 저장소에 APK를 만들 수 없습니다")
             (contentResolver.openInputStream(source)?:throw java.io.IOException("다운로드한 APK를 열 수 없습니다")).use{input->(contentResolver.openOutputStream(target.uri)?:throw java.io.IOException("USB APK 파일을 열 수 없습니다")).use{output->input.copyTo(output)}}
             if(!verifyStoredApk(target.uri,sourceSize(source),uriSha256(source)))throw java.io.IOException("USB 저장 검증 실패")
-            runOnUiThread{pendingInstallUri=null;state.text="${targetDir.name}/$name 저장 완료";AlertDialog.Builder(this).setTitle("USB 저장 완료").setMessage("$name\n\n파일 저장이 완료되었습니다. 설치 성공 여부는 차량 패키지 설치기에서 확인하세요.").setNegativeButton("닫기",null).setPositiveButton("설치 시도"){_,_->installApk(target.uri)}.show()}
+            runOnUiThread{pendingInstallUri=null;state.text="${targetDir.name}/$name 저장 완료";AlertDialog.Builder(this).setTitle("USB 저장 완료").setMessage("$name\n\n차량 순정 파일 앱에서 USB의 APK를 열어 설치하세요.").setPositiveButton("확인",null).show()}
         }
     }
     private fun sourceSize(uri:Uri):Long=contentResolver.query(uri,arrayOf(OpenableColumns.SIZE),null,null,null)?.use{if(it.moveToFirst()&&!it.isNull(0))it.getLong(0) else -1L}?:-1L
@@ -838,7 +838,7 @@ class MainActivity:Activity(){
             71,72->{val uris=d.clipData?.let{clip->(0 until clip.itemCount).map{clip.getItemAt(it).uri}}?:listOfNotNull(d.data);if(r==72||mode=="drive"||uris.size>1)uploadFiles(uris)else uris.firstOrNull()?.let{localActions(it,"선택한 파일",contentResolver.getType(it)?:"application/octet-stream")}}
             73->{val f=pendingDownload?:return;val uri=d.data?:return;pendingDownload=null;task("파일 저장 중"){(contentResolver.openOutputStream(uri)?:throw java.io.IOException("저장 파일을 열 수 없습니다.")).use{api.download(f.id,it){n->update("${bytes(n)} 저장 중")}};update("저장 완료: ${f.name}")}}
             75->{val f=pendingDashcam?:return;val uri=d.data?:return;pendingDashcam=null;task("대시캠 저장 중"){dashcamApi.withFileList("save-to-selected-location"){(contentResolver.openOutputStream(uri)?:throw java.io.IOException("저장 파일을 열 수 없습니다.")).use{out->dashcamApi.download(f,out){n->update("${bytes(n)} 저장 중 · ${f.name}")}}};update("대시캠 저장 완료: ${f.name}")}}
-            76->{val source=pendingUpdateSource?:return;val name=pendingUpdateName?:"P4-Files-update.apk";val target=d.data?:return;pendingUpdateSource=null;pendingUpdateName=null;task("선택 위치에 업데이트 저장 중"){val expectedSize=sourceSize(source);val expectedSha=uriSha256(source);(contentResolver.openInputStream(source)?:throw java.io.IOException("다운로드한 APK를 열 수 없습니다.")).use{input->(contentResolver.openOutputStream(target)?:throw java.io.IOException("선택한 위치를 열 수 없습니다.")).use{output->input.copyTo(output)}};if(!verifyStoredApk(target,expectedSize,expectedSha))throw java.io.IOException("선택 위치 저장 검증 실패");runOnUiThread{pendingInstallUri=null;state.text="$name 저장 완료";AlertDialog.Builder(this).setTitle("업데이트 저장 완료").setMessage("$name\n\n파일 저장이 완료되었습니다. 설치 성공 여부는 차량 패키지 설치기에서 확인하세요.").setNegativeButton("닫기",null).setPositiveButton("설치 시도"){_,_->installApk(target)}.show()}}}
+            76->{val source=pendingUpdateSource?:return;val name=pendingUpdateName?:"P4-Files-update.apk";val target=d.data?:return;pendingUpdateSource=null;pendingUpdateName=null;task("선택 위치에 업데이트 저장 중"){val expectedSize=sourceSize(source);val expectedSha=uriSha256(source);(contentResolver.openInputStream(source)?:throw java.io.IOException("다운로드한 APK를 열 수 없습니다.")).use{input->(contentResolver.openOutputStream(target)?:throw java.io.IOException("선택한 위치를 열 수 없습니다.")).use{output->input.copyTo(output)}};if(!verifyStoredApk(target,expectedSize,expectedSha))throw java.io.IOException("선택 위치 저장 검증 실패");runOnUiThread{pendingInstallUri=null;state.text="$name 저장 완료";AlertDialog.Builder(this).setTitle("업데이트 저장 완료").setMessage("$name\n\n차량 순정 파일 앱에서 저장한 APK를 열어 설치하세요.").setPositiveButton("확인",null).show()}}}
         }
     }
     override fun onDestroy(){dashcamPlaybackDialog?.dismiss();dashcamPlaybackDialog=null;dashcamPlaybackLease?.close();dashcamPlaybackLease=null;cancelled.set(true);vehicleAuthCancel?.set(true);vehicleAuthDialog?.dismiss();handler.removeCallbacks(queueRefresh);worker.shutdownNow();thumbWorker.shutdownNow();dashcamThumbs.evictAll();super.onDestroy()}
