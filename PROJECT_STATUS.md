@@ -6,7 +6,8 @@
 - 업데이트: GitHub 최신 manifest URL을 앱 코드에 고정하고 주소 입력/변경 대화상자를 제거했다.
 - 검증: `lintDebug`, `assembleDebug`, `assembleRelease` 성공. APK package/version 및 기존 차량 설치본과 같은 서명 SHA-1 확인.
 - APK: `releases/P4-Files-v1.44.apk`, SHA-256 `61B95C2F0B814CE0C3966F6D6E729D6D4FE6C037CE0C78BF79FC216312EAED57`.
-- GitHub 릴리스: 준비 중. 차량 실기기 업로드·업데이트와 DVR Range 응답은 미검증.
+- GitHub 릴리스: [v1.44](https://github.com/jeonbj005-tech/p4-files/releases/tag/v1.44) 공개. 최신 manifest가 versionCode 54와 APK SHA-256을 반환하고 APK 링크 HEAD 200 및 6,404,066바이트를 확인.
+- 차량 실기기 업로드·업데이트와 DVR Range 응답은 미검증.
 
 2026-11-02 · v1.43 / versionCode 53
 

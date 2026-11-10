@@ -9,6 +9,7 @@
 - 실차 검증 전 위험: DVR 파일목록 모드를 업로드 완료까지 유지하므로 긴 전송이 녹화에 미치는 영향, 차량 DVR의 Range 응답 및 Drive의 길이 미상 최종 청크 수락 여부는 확인되지 않았다.
 - 검증: `lintDebug`, `assembleDebug`, `assembleRelease` 통과. APK package/version `com.polestar4.drivefilemanager` / v1.44, 서명 SHA-1이 이전 차량 설치 APK와 일치.
 - APK SHA-256: `61B95C2F0B814CE0C3966F6D6E729D6D4FE6C037CE0C78BF79FC216312EAED57`.
+- 배포: [GitHub Release v1.44](https://github.com/jeonbj005-tech/p4-files/releases/tag/v1.44). 공개 `latest/download/update.json`과 APK URL·버전·해시가 일치함.
 - 차량에서 DVR Range 요청, Drive 파일 생성, 업로드 중 녹화 동작 및 업데이트 설치 결과는 미검증.
 
 ## 2026-11-02 — 시작 시 현재 달·선택 날짜만 갱신
