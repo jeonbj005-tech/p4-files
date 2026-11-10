@@ -8,9 +8,9 @@ P4 Files v1.25부터 Google Drive 권한과 무관한 HTTPS 업데이트를 지�
 
 ## 2. Release 파일
 
-각 Release에는 이름이 고정된 다음 두 파일을 첨부한다.
+각 Release에는 버전이 붙은 APK와 `update.json`을 첨부한다.
 
-- `P4-Files.apk`
+- `P4-Files-v<versionName>.apk` (예: `P4-Files-v1.44.apk`)
 - `update.json`
 
 `update.json` 형식:
@@ -29,7 +29,7 @@ P4 Files v1.25부터 Google Drive 권한과 무관한 HTTPS 업데이트를 지�
 
 ## 3. 업데이트 주소
 
-기본 GitHub 저장소의 최신 manifest 주소는 APK에 내장되어 있어 차량에서 입력할 필요가 없다. 다른 저장소를 사용할 때만 `update.properties`로 덮어쓴다.
+최신 manifest 주소는 앱 소스에 고정되어 있어 차량에서 주소를 입력할 필요가 없다.
 
 ```text
 https://github.com/jeonbj005-tech/p4-files/releases/latest/download/update.json
@@ -47,13 +47,3 @@ https://github.com/jeonbj005-tech/p4-files/releases/latest/download/update.json
 6. 차량 순정 다운로드/파일 앱을 연다. 거기서 APK를 선택해 설치한다.
 
 P4 Files가 직접 설치를 시작하지 않는 것은 차량에서 앱 출처 설치가 제한될 수 있기 때문이다. 선택 저장 위치로 저장한 경우에도 차량 순정 파일 앱에서 APK를 연다. SHA-256이 다르면 완료 안내를 표시하지 않는다.
-
-## 5. 빌드 시 주소 고정(선택)
-
-프로젝트 루트에 커밋하지 않는 `update.properties`를 만들 수 있다.
-
-```properties
-manifestUrl=https://github.com/OWNER/REPOSITORY/releases/latest/download/update.json
-```
-
-이 값이 없으면 차량 앱에서 최초 한 번 직접 입력한다.

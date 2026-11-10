@@ -1,2 +1,0 @@
-# 기본값은 앱에 포함되어 있으며, 다른 배포 주소가 필요할 때만 덮어씁니다.
-manifestUrl=https://github.com/jeonbj005-tech/p4-files/releases/latest/download/update.json

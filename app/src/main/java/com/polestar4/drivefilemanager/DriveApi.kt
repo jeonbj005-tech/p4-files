@@ -90,55 +90,62 @@ class DriveApi(private val ctx: Context) {
         val c=request("https://www.googleapis.com/drive/v3/files/${Uri.encode(id)}$suffix","PATCH")
         try{c.doOutput=true;c.setRequestProperty("Content-Type","application/json");c.outputStream.use{it.write(body.toString().toByteArray())};check(response(c))}finally{c.disconnect()}
     }
-    fun upload(uri:Uri,name:String,mime:String,parent:String,progress:(Long)->Unit):String {
-        var spool:File?=null
-        var length=ctx.contentResolver.query(uri,arrayOf(android.provider.OpenableColumns.SIZE),null,null,null)?.use{if(it.moveToFirst()&&!it.isNull(0))it.getLong(0) else -1L}?:-1L
-        if(length<0){
-            val temp=File.createTempFile("upload-",".part",ctx.cacheDir)
-            try{(ctx.contentResolver.openInputStream(uri)?:throw IOException("파일을 열 수 없습니다.")).use{input->temp.outputStream().use{input.copyTo(it)}}}catch(e:Exception){temp.delete();throw e}
-            spool=temp;length=temp.length()
-        }
-        try {
+    fun uploadEmpty(uri:Uri,name:String,mime:String,parent:String):String{
+        (ctx.contentResolver.openInputStream(uri)?:throw IOException("파일을 열 수 없습니다.")).use{if(it.read()!=-1)throw IOException("0바이트 파일로 확인되지 않아 업로드를 중단했습니다.")}
         val init=request("https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable","POST")
-        val location=try{init.doOutput=true;init.setRequestProperty("Content-Type","application/json");init.setRequestProperty("X-Upload-Content-Type",mime)
-            init.setRequestProperty("X-Upload-Content-Length",length.toString())
-            init.outputStream.use{it.write(JSONObject().put("name",name).put("parents",JSONArray().put(parent)).toString().toByteArray())}
-            if(init.responseCode !in 200..299)check(response(init));init.getHeaderField("Location")?:throw IOException("업로드 세션 생성 실패")
-        }finally{init.disconnect()}
+        val location=try{init.doOutput=true;init.setRequestProperty("Content-Type","application/json");init.setRequestProperty("X-Upload-Content-Type",mime);init.setRequestProperty("X-Upload-Content-Length","0");init.outputStream.use{it.write(JSONObject().put("name",name).put("parents",JSONArray().put(parent)).toString().toByteArray())};if(init.responseCode !in 200..299)check(response(init));init.getHeaderField("Location")?:throw IOException("업로드 세션 생성 실패")}finally{init.disconnect()}
         val c=request(location,"PUT")
-        try{c.doOutput=true;c.setFixedLengthStreamingMode(length);c.setRequestProperty("Content-Type",mime)
-            (spool?.inputStream()?:ctx.contentResolver.openInputStream(uri))?.use{input->c.outputStream.use{output->copy(input,output,progress)}}?:throw IOException("파일을 열 수 없습니다.")
-            return check(response(c)).getString("id")
-        }finally{c.disconnect()}
-        }finally{spool?.delete()}
+        return try{c.doOutput=true;c.setFixedLengthStreamingMode(0);c.setRequestProperty("Content-Type",mime);c.outputStream.use{};check(response(c)).getString("id")}finally{c.disconnect()}
     }
     fun uploadResumable(uri:Uri,name:String,mime:String,parent:String,length:Long,savedSession:String,onSession:(String)->Unit,progress:(Long)->Unit){
+        uploadResumableFrom({offset->ctx.contentResolver.openInputStream(uri)?.apply{skipFully(this,offset)}},name,mime,parent,length,savedSession,onSession,progress)
+    }
+    fun uploadResumableFrom(openSource:(Long)->InputStream?,name:String,mime:String,parent:String,length:Long,savedSession:String,onSession:(String)->Unit,progress:(Long)->Unit){
+        val knownLength=length>0
         var session=savedSession;var offset=0L
         if(session.isNotBlank()){
             val probe=request(session,"PUT")
-            try{probe.doOutput=true;probe.setFixedLengthStreamingMode(0);probe.setRequestProperty("Content-Range","bytes */$length");val code=probe.responseCode
-                if(code==308)offset=probe.getHeaderField("Range")?.substringAfterLast('-')?.toLongOrNull()?.plus(1)?:0L
-                else if(code in 200..299){progress(length);return}
+            try{probe.doOutput=true;probe.setFixedLengthStreamingMode(0);probe.setRequestProperty("Content-Range","bytes */${if(knownLength)length else "*"}");val code=probe.responseCode
+                if(code==308)offset=uploadedOffset(probe)
+                else if(code in 200..299){progress(if(knownLength)length else uploadedOffset(probe));return}
                 else if(code==404){session="";offset=0}else check(response(probe))
             }finally{probe.disconnect()}
         }
         if(session.isBlank()){
             val init=request("https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable","POST")
-            session=try{init.doOutput=true;init.setRequestProperty("Content-Type","application/json");init.setRequestProperty("X-Upload-Content-Type",mime);init.setRequestProperty("X-Upload-Content-Length",length.toString());init.outputStream.use{it.write(JSONObject().put("name",name).put("parents",JSONArray().put(parent)).toString().toByteArray())};if(init.responseCode !in 200..299)check(response(init));init.getHeaderField("Location")?:throw IOException("업로드 세션 생성 실패")}finally{init.disconnect()}
+            session=try{init.doOutput=true;init.setRequestProperty("Content-Type","application/json");init.setRequestProperty("X-Upload-Content-Type",mime);if(knownLength)init.setRequestProperty("X-Upload-Content-Length",length.toString());init.outputStream.use{it.write(JSONObject().put("name",name).put("parents",JSONArray().put(parent)).toString().toByteArray())};if(init.responseCode !in 200..299)check(response(init));init.getHeaderField("Location")?:throw IOException("업로드 세션 생성 실패")}finally{init.disconnect()}
             onSession(session)
         }
-        val input=ctx.contentResolver.openInputStream(uri)?:throw IOException("파일을 열 수 없습니다.")
-        input.use{stream->var skipped=0L;while(skipped<offset){val n=stream.skip(offset-skipped);if(n<=0){if(stream.read()<0)throw EOFException("업로드 재개 위치를 찾을 수 없습니다");skipped++}else skipped+=n};progress(offset)
-            val chunk=ByteArray(1024*1024);while(offset<length){val wanted=minOf(chunk.size.toLong(),length-offset).toInt();var count=0;while(count<wanted){val n=stream.read(chunk,count,wanted-count);if(n<0)throw EOFException("예상보다 파일이 짧습니다");count+=n}
-                val end=offset+count-1;val c=request(session,"PUT")
-                try{c.doOutput=true;c.setFixedLengthStreamingMode(count);c.setRequestProperty("Content-Type",mime);c.setRequestProperty("Content-Range","bytes $offset-$end/$length");c.outputStream.use{it.write(chunk,0,count)};val code=c.responseCode
-                    if(code==308){offset=c.getHeaderField("Range")?.substringAfterLast('-')?.toLongOrNull()?.plus(1)?:end+1;progress(offset)}
-                    else if(code in 200..299){progress(length);return}
-                    else check(response(c))
-                }finally{c.disconnect()}
+        if(knownLength&&offset>length)throw IOException("Drive 업로드 위치가 파일 크기를 초과했습니다.")
+        val input=openSource(offset)?:throw IOException("파일을 열 수 없습니다.")
+        input.use{raw->val stream=PushbackInputStream(raw,1);progress(offset);val chunk=ByteArray(1024*1024)
+            while(true){
+                val wanted=if(knownLength)minOf(chunk.size.toLong(),length-offset).toInt() else chunk.size
+                if(wanted==0)throw IOException("Drive 업로드가 완료되지 않았습니다.")
+                var count=0
+                while(count<wanted){val n=stream.read(chunk,count,wanted-count);if(n<0)break;count+=n}
+                if(count==0)throw EOFException(if(knownLength)"예상보다 파일이 짧습니다." else "빈 파일은 업로드할 수 없습니다.")
+                if(knownLength&&count<wanted)throw EOFException("예상보다 파일이 짧습니다.")
+                val last=if(knownLength)offset+count==length else if(count<wanted)true else {val next=stream.read();if(next<0)true else{stream.unread(next);false}}
+                var accepted=0
+                while(accepted<count){
+                    val start=offset+accepted;val end=offset+count-1;val c=request(session,"PUT")
+                    try{
+                        c.doOutput=true;c.setFixedLengthStreamingMode(count-accepted);c.setRequestProperty("Content-Type",mime);c.setRequestProperty("Content-Range","bytes $start-$end/${if(last)offset+count else "*"}")
+                        c.outputStream.use{it.write(chunk,accepted,count-accepted)}
+                        val code=c.responseCode
+                        if(code==308){val next=uploadedOffset(c);if(next<=start||next>offset+count)throw IOException("Drive 업로드 위치가 진행되지 않았습니다.");accepted=(next-offset).toInt();progress(next)}
+                        else if(code in 200..299){if(!last)throw IOException("Drive가 파일 끝보다 먼저 업로드를 완료했습니다.");progress(if(knownLength)length else offset+count);return}
+                        else check(response(c))
+                    }finally{c.disconnect()}
+                }
+                offset+=count
+                if(last)throw IOException("Drive가 최종 업로드 청크를 완료하지 않았습니다.")
             }
         }
     }
+    private fun uploadedOffset(c:HttpURLConnection)=c.getHeaderField("Range")?.substringAfterLast('-')?.toLongOrNull()?.plus(1)?:0L
+    private fun skipFully(input:InputStream,count:Long){var skipped=0L;while(skipped<count){val n=input.skip(count-skipped);if(n>0)skipped+=n else if(input.read()<0)throw EOFException("업로드 재개 위치를 찾을 수 없습니다.") else skipped++}}
     fun download(id:String,output:OutputStream,progress:(Long)->Unit){val c=request("https://www.googleapis.com/drive/v3/files/${Uri.encode(id)}?alt=media");try{if(c.responseCode !in 200..299){check(response(c));throw IOException("다운로드 실패")};c.inputStream.use{copy(it,output,progress)}}finally{c.disconnect()}}
     fun downloadResumable(id:String,file:File,progress:(Long)->Unit){var offset=if(file.exists())file.length() else 0L;val c=request("https://www.googleapis.com/drive/v3/files/${Uri.encode(id)}?alt=media");if(offset>0)c.setRequestProperty("Range","bytes=$offset-");try{val code=c.responseCode;if(code !in 200..299){check(response(c));throw IOException("다운로드 실패")};val append=code==206&&offset>0;if(!append)offset=0;FileOutputStream(file,append).use{out->c.inputStream.use{input->val buffer=ByteArray(256*1024);var total=offset;while(true){val n=input.read(buffer);if(n<0)break;out.write(buffer,0,n);total+=n;progress(total)}}}}finally{c.disconnect()}}
     private fun copy(input:InputStream,output:OutputStream,progress:(Long)->Unit){val buffer=ByteArray(256*1024);var total=0L;var last=0L;while(true){val n=input.read(buffer);if(n<0)break;output.write(buffer,0,n);total+=n;if(System.currentTimeMillis()-last>300){progress(total);last=System.currentTimeMillis()}};progress(total)}

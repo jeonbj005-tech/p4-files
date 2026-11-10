@@ -49,11 +49,13 @@ object TransferManager {
     private fun request(taskId:String)=OneTimeWorkRequestBuilder<P4TransferWorker>()
         .setInputData(workDataOf("taskId" to taskId)).addTag(TAG)
         .setBackoffCriteria(BackoffPolicy.EXPONENTIAL,15,TimeUnit.SECONDS).build()
-    fun enqueueUpload(ctx:Context,source:String,name:String,mime:String,parent:String,size:Long):String{
+    private fun enqueue(ctx:Context,kind:String,source:String,name:String,mime:String,parent:String,size:Long):String{
         val id=UUID.randomUUID().toString();val req=request(id)
-        TransferStore.put(ctx,TransferTask(id,req.id.toString(),"UPLOAD",name,source,mime,parent,"",size,0,"QUEUED","",System.currentTimeMillis()))
+        TransferStore.put(ctx,TransferTask(id,req.id.toString(),kind,name,source,mime,parent,"",size,0,"QUEUED","",System.currentTimeMillis()))
         WorkManager.getInstance(ctx).enqueue(req);return id
     }
+    fun enqueueUpload(ctx:Context,source:String,name:String,mime:String,parent:String,size:Long)=enqueue(ctx,"UPLOAD",source,name,mime,parent,size)
+    fun enqueueDashcamUpload(ctx:Context,source:String,name:String,mime:String,parent:String,size:Long)=enqueue(ctx,"DVR_UPLOAD",source,name,mime,parent,size)
     fun enqueueDownload(ctx:Context,remoteId:String,name:String,mime:String,size:Long):String{
         val id=UUID.randomUUID().toString();val req=request(id)
         TransferStore.put(ctx,TransferTask(id,req.id.toString(),"DOWNLOAD",name,"",mime,"root",remoteId,size,0,"QUEUED","",System.currentTimeMillis()))

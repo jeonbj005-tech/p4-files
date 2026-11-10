@@ -2,8 +2,7 @@ package com.polestar4.drivefilemanager
 
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.IOException
-import java.io.OutputStream
+import java.io.*
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
@@ -14,6 +13,7 @@ class DashcamApi {
     data class Media(val type:String,val id:String,val name:String,val size:Long,val dateTime:Long,val duration:Int,val url:String)
 
     companion object {
+        val shared by lazy { DashcamApi() }
         private const val BASE="http://198.18.37.20"
         private const val STATUS="/status?app=gallery"
         private const val MEDIA_DIRS="/mediaDirList?app=gallery"
@@ -152,6 +152,26 @@ class DashcamApi {
             c.inputStream.use{input->val buffer=ByteArray(256*1024);var total=0L;while(true){val n=input.read(buffer);if(n<0)break;out.write(buffer,0,n);total+=n;progress(total)}}
         } finally { c.disconnect() }
     }
+
+    fun openStream(url:String,offset:Long=0):InputStream{
+        val c=connection(url)
+        if(offset>0)c.setRequestProperty("Range","bytes=$offset-")
+        try{
+            val code=c.responseCode
+            if(code==403)throw IOException("DVR HTTP 403: 파일목록 모드가 해제되어 업로드를 중단했습니다.")
+            if(code !in 200..299)throw IOException("DVR HTTP $code")
+            val input=c.inputStream
+            if(offset>0){
+                if(code==206){
+                    val start=c.getHeaderField("Content-Range")?.substringAfter("bytes ")?.substringBefore('-')?.toLongOrNull()
+                    if(start!=offset)throw IOException("DVR 범위 응답이 업로드 위치와 다릅니다.")
+                }else skipFully(input,offset)
+            }
+            return object:FilterInputStream(input){override fun close(){try{super.close()}finally{c.disconnect()}}}
+        }catch(e:Exception){c.disconnect();throw e}
+    }
+
+    private fun skipFully(input:InputStream,count:Long){var skipped=0L;while(skipped<count){val n=input.skip(count-skipped);if(n>0)skipped+=n else if(input.read()<0)throw EOFException("DVR 업로드 재개 위치를 찾을 수 없습니다.") else skipped++}}
 
     private fun thumbnailRequest(media:Media):ByteArray?{
         val url="$BASE/thumbnail?app=gallery&mediaType=${enc(media.type)}&id=${enc(media.id)}&time=${media.dateTime}"

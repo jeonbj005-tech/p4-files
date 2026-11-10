@@ -10,6 +10,7 @@ import java.security.MessageDigest
 data class UpdateInfo(val versionCode:Int,val versionName:String,val apkUrl:String,val sha256:String,val notes:String)
 
 class AppUpdater(private val context:Context){
+    companion object { const val DEFAULT_MANIFEST_URL="https://github.com/jeonbj005-tech/p4-files/releases/latest/download/update.json" }
     fun check(manifestUrl:String):UpdateInfo{
         require(manifestUrl.startsWith("https://")){"업데이트 주소는 HTTPS여야 합니다."}
         val json=JSONObject(request(manifestUrl).decodeToString())

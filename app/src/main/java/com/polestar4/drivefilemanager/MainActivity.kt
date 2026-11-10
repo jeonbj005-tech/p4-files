@@ -44,7 +44,7 @@ import java.security.MessageDigest
 class MainActivity:Activity(){
     private enum class SortMode(val label:String){NAME_ASC("이름 A–Z"),NAME_DESC("이름 Z–A"),NEWEST("최신순"),OLDEST("오래된순"),SIZE_DESC("용량 큰순"),SIZE_ASC("용량 작은순")}
     private val api by lazy { DriveApi(this) }
-    private val dashcamApi by lazy { DashcamApi() }
+    private val dashcamApi by lazy { DashcamApi.shared }
     private val dashcamThumbnailCache by lazy { ThumbnailDiskCache(File(filesDir,"dvr_thumbs")) }
     private val appUpdater by lazy { AppUpdater(this) }
     private val authorizationClient by lazy { Identity.getAuthorizationClient(this) }
@@ -397,7 +397,7 @@ class MainActivity:Activity(){
         loadDashcamThumbnail(image,media)
         val labels=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;addView(text(media.name,dvrText(14f)).apply{setTypeface(null,Typeface.BOLD);maxLines=2;ellipsize=TextUtils.TruncateAt.END});addView(text("${date(dashcamTime(media.dateTime,media.name))}\n${bytes(media.size)}",dvrText(11f),muted).apply{setPadding(0,dp(5),0,0)})}
         row.addView(labels,LinearLayout.LayoutParams(0,-2,1f))
-        row.addView(button("Drive ↑"){dashcamDownload(media,false,true)},LinearLayout.LayoutParams(dp(92),dp(46)).apply{rightMargin=dp(5)})
+        row.addView(button("Drive ↑"){uploadDashcam(media)},LinearLayout.LayoutParams(dp(92),dp(46)).apply{rightMargin=dp(5)})
         row.addView(text("⋮",22f,muted).apply{gravity=Gravity.CENTER;setOnClickListener{dashcamActions(category,media)}},LinearLayout.LayoutParams(dp(38),dp(42)))
         host.addView(row,LinearLayout.LayoutParams(-1,dp(106)).apply{bottomMargin=dp(7)})
     }
@@ -469,14 +469,14 @@ class MainActivity:Activity(){
         val options=arrayOf("재생 / 보기","P4 Files 다운로드에 저장","저장 위치 선택","Google Drive 업로드","정보")
         AlertDialog.Builder(this).setTitle(media.name).setItems(options){_,index->when(index){
             0->dashcamPreview(media)
-            1->dashcamDownload(media,false,false)
+            1->dashcamDownload(media,false)
             2->{pendingDashcam=media;launch(Intent(Intent.ACTION_CREATE_DOCUMENT).setType(dashcamApi.mime(media)).putExtra(Intent.EXTRA_TITLE,media.name),75)}
-            3->dashcamDownload(media,false,true)
+            3->uploadDashcam(media)
             else->showInfo(media.name,"${dashcamApi.mime(media)} · ${category.label}",media.size,dashcamTime(media.dateTime,media.name))
         }}.show()
     }
     private fun dashcamPreview(media:DashcamApi.Media){
-        if(!dashcamApi.mime(media).startsWith("video/")){dashcamDownload(media,true,false);return}
+        if(!dashcamApi.mime(media).startsWith("video/")){dashcamDownload(media,true);return}
         task("대시캠 영상 연결 중"){
             val lease=dashcamApi.acquirePlaybackSession()
             runOnUiThread{
@@ -491,15 +491,21 @@ class MainActivity:Activity(){
             }
         }
     }
-    private fun dashcamDownload(media:DashcamApi.Media,open:Boolean,upload:Boolean){
+    private fun dashcamDownload(media:DashcamApi.Media,open:Boolean){
         task(if(open)"대시캠 재생 준비 중" else "대시캠 저장 중"){
             val dir=File(getExternalFilesDir(null),"Downloads").apply{mkdirs()}
             val safe=media.name.replace(Regex("[^A-Za-z0-9가-힣._-]"),"_")
             val file=File(dir,safe)
             dashcamApi.withFileList("download") {file.outputStream().use{out->dashcamApi.download(media,out){n->update("${bytes(n)} 받는 중 · ${media.name}")}}}
-            val uri=FileProvider.getUriForFile(this,"$packageName.files",file)
-            runOnUiThread{when{open->openDashcamFile(file,media);upload->uploadFiles(listOf(uri));else->state.text="대시캠 저장 완료: ${media.name}"}}
+            runOnUiThread{if(open)openDashcamFile(file,media)else state.text="대시캠 저장 완료: ${media.name}"}
         }
+    }
+    private fun uploadDashcam(media:DashcamApi.Media){
+        if(!api.connected){AlertDialog.Builder(this).setMessage("먼저 홈의 Google Drive에서 계정을 연결하세요.").setPositiveButton("확인",null).show();return}
+        AlertDialog.Builder(this).setTitle("Google Drive 업로드").setMessage("${media.name}\n${bytes(media.size)}\n\n차량 저장소에 복사하지 않고 DVR에서 Drive로 바로 전송합니다.\n전송 중에는 DVR 파일 모드를 유지합니다.").setNegativeButton("취소",null).setPositiveButton("대기열 추가"){_,_->
+            TransferManager.enqueueDashcamUpload(this,media.url,media.name,dashcamApi.mime(media),remotePath.last().first,media.size)
+            showQueue()
+        }.show()
     }
     private fun openDashcamFile(file:File,media:DashcamApi.Media){
         val mime=dashcamApi.mime(media)
@@ -608,7 +614,7 @@ class MainActivity:Activity(){
     private fun touchRecent(drive:Boolean,id:String,name:String){val old=try{JSONArray(favPrefs().getString("recent","[]"))}catch(_:Exception){JSONArray()};val out=JSONArray().put(JSONObject().put("drive",drive).put("id",id).put("name",name));for(i in 0 until old.length()){val j=old.optJSONObject(i)?:continue;if(j.optBoolean("drive")==drive&&j.optString("id")==id)continue;if(out.length()<20)out.put(j)};favPrefs().edit().putString("recent",out.toString()).apply()}
     private fun showRecent(){mode="recent";title.text="최근 항목";subtitle.text="최근 열어본 파일과 폴더";actions.removeAllViews();body.removeAllViews();val array=try{JSONArray(favPrefs().getString("recent","[]"))}catch(_:Exception){JSONArray()};body.addView(text("RECENT · ${array.length()}개",11f,muted).apply{setPadding(dp(4),dp(12),0,dp(9))});for(i in 0 until array.length()){val j=array.getJSONObject(i);val drive=j.optBoolean("drive");val id=j.optString("id");val name=j.optString("name","항목");entryRow(name,if(drive)"DRIVE" else "LOCAL","최근 열어본 항목",false){if(drive)task("최근 항목 여는 중"){val f=api.getFile(id);runOnUiThread{if(f.folder){remotePath.add(f.id to f.name);showDrive()}else driveActions(f)}}else DocumentFile.fromSingleUri(this,Uri.parse(id))?.let{f->if(f.isDirectory){localPath.add(f);showLocal()}else localActions(f)}}}}
     private fun showQueue(){mode="queue";title.text="전송 대기열";subtitle.text="백그라운드 업로드·다운로드";renderQueue();handler.removeCallbacks(queueRefresh);handler.postDelayed(queueRefresh,1000)}
-    private fun renderQueue(){if(mode!="queue")return;actions.removeAllViews();body.removeAllViews();actions.addView(button("완료 항목 정리"){TransferStore.clearFinished(this);renderQueue()});val tasks=TransferStore.list(this);val active=tasks.count{it.status in setOf("QUEUED","RUNNING","PAUSED")};body.addView(text("TRANSFERS · ${tasks.size}개 · 진행 $active",11f,muted).apply{setPadding(dp(4),dp(12),0,dp(9))});tasks.forEach{t->val pct=if(t.size>0)(t.progress*100/t.size).coerceIn(0,100) else 0;val meta="${if(t.kind=="UPLOAD")"업로드" else "다운로드"} · ${t.status} · $pct%${if(t.error.isNotBlank())" · ${t.error}" else ""}";entryRow(t.name,if(t.kind=="UPLOAD")"UP" else "DOWN",meta,false,{transferActions(t)}){transferActions(t)}};if(tasks.isEmpty())body.addView(text("대기 중인 전송이 없습니다.",15f,muted).apply{setPadding(dp(4),dp(20),0,0)})}
+    private fun renderQueue(){if(mode!="queue")return;actions.removeAllViews();body.removeAllViews();actions.addView(button("완료 항목 정리"){TransferStore.clearFinished(this);renderQueue()});val tasks=TransferStore.list(this);val active=tasks.count{it.status in setOf("QUEUED","RUNNING","PAUSED")};body.addView(text("TRANSFERS · ${tasks.size}개 · 진행 $active",11f,muted).apply{setPadding(dp(4),dp(12),0,dp(9))});tasks.forEach{t->val isUpload=t.kind!="DOWNLOAD";val pct=if(t.size>0)(t.progress*100/t.size).coerceIn(0,100) else 0;val meta="${if(isUpload)"업로드" else "다운로드"} · ${t.status} · $pct%${if(t.error.isNotBlank())" · ${t.error}" else ""}";entryRow(t.name,if(isUpload)"UP" else "DOWN",meta,false,{transferActions(t)}){transferActions(t)}};if(tasks.isEmpty())body.addView(text("대기 중인 전송이 없습니다.",15f,muted).apply{setPadding(dp(4),dp(20),0,0)})}
     private fun transferActions(t:TransferTask){val options=when(t.status){"RUNNING","QUEUED"->arrayOf("일시정지","취소");"PAUSED"->arrayOf("계속","취소");"FAILED","CANCELED"->arrayOf("재시도");else->emptyArray()};if(options.isEmpty())return;AlertDialog.Builder(this).setTitle(t.name).setItems(options){_,i->when(options[i]){"일시정지"->TransferManager.pause(this,t.id);"취소"->TransferManager.cancel(this,t.id);"계속","재시도"->TransferManager.resume(this,t.id)};renderQueue()}.show()}
     private fun showDualPane(){mode="dual";title.text="P4 FILES";subtitle.text="차량 저장소 ↔ Google Drive";body.removeAllViews();task("2분할 불러오는 중"){val local=localPath.lastOrNull()?.listFiles()?.toList().orEmpty();val drive=if(api.connected)api.listFolder(remotePath.last().first)else emptyList();runOnUiThread{renderDual(local,drive);state.text="차량 ${local.size}개 · Drive ${drive.size}개"}}}
     private fun renderDual(local:List<DocumentFile>,drive:List<DriveApi.DriveFile>){
@@ -762,23 +768,17 @@ class MainActivity:Activity(){
     private fun pasteLocal(){val pair=localClipboard?:return;val source=pair.first;val move=pair.second;val target=localPath.last();task(if(move)"이동 중" else "복사 중"){copyLocal(source,target);if(move&&!source.delete())throw java.io.IOException("원본 삭제 실패");val list=target.listFiles().toList();runOnUiThread{localClipboard=null;renderLocal(list);state.text=if(move)"이동 완료" else "복사 완료"}}}
     private fun copyLocal(source:DocumentFile,target:DocumentFile){if(source.isDirectory){val dir=target.createDirectory(source.name?:"폴더")?:throw java.io.IOException("폴더 생성 실패");source.listFiles().forEach{copyLocal(it,dir)}}else{val out=target.createFile(source.type?:"application/octet-stream",source.name?:"파일")?:throw java.io.IOException("파일 생성 실패");(contentResolver.openInputStream(source.uri)?:throw java.io.IOException("원본 열기 실패")).use{input->(contentResolver.openOutputStream(out.uri)?:throw java.io.IOException("대상 열기 실패")).use{input.copyTo(it)}}}}
     private fun uploadFiles(uris:List<Uri>){if(!api.connected){AlertDialog.Builder(this).setMessage("먼저 홈의 Google Drive에서 계정을 연결하세요.").setPositiveButton("확인",null).show();return}
-        AlertDialog.Builder(this).setTitle("${uris.size}개 파일 업로드").setMessage("대상: ${remotePath.joinToString(" / "){it.second}}\n전송은 백그라운드 대기열에서 진행됩니다.").setNegativeButton("취소",null).setPositiveButton("대기열 추가"){_,_->uris.forEach{u->try{contentResolver.takePersistableUriPermission(u,Intent.FLAG_GRANT_READ_URI_PERMISSION)}catch(_:Exception){};val info=contentResolver.query(u,arrayOf(OpenableColumns.DISPLAY_NAME,OpenableColumns.SIZE),null,null,null)?.use{c->if(c.moveToFirst())Pair(c.getString(0)?:"파일",if(c.isNull(1))0L else c.getLong(1)) else null}?:Pair("파일",0L);TransferManager.enqueueUpload(this,u.toString(),info.first,contentResolver.getType(u)?:"application/octet-stream",remotePath.last().first,info.second)};showQueue()}.show()
+        AlertDialog.Builder(this).setTitle("${uris.size}개 파일 업로드").setMessage("대상: ${remotePath.joinToString(" / "){it.second}}\n전송은 백그라운드 대기열에서 진행됩니다.").setNegativeButton("취소",null).setPositiveButton("대기열 추가"){_,_->uris.forEach{u->try{contentResolver.takePersistableUriPermission(u,Intent.FLAG_GRANT_READ_URI_PERMISSION)}catch(_:Exception){};val info=contentResolver.query(u,arrayOf(OpenableColumns.DISPLAY_NAME,OpenableColumns.SIZE),null,null,null)?.use{c->if(c.moveToFirst())Pair(c.getString(0)?:"파일",if(c.isNull(1))-1L else c.getLong(1)) else null}?:Pair("파일",-1L);TransferManager.enqueueUpload(this,u.toString(),info.first,contentResolver.getType(u)?:"application/octet-stream",remotePath.last().first,info.second)};showQueue()}.show()
     }
     private fun download(f:DriveApi.DriveFile){TransferManager.enqueueDownload(this,f.id,f.name,f.mime,f.size);state.text="다운로드 대기열 추가: ${f.name}"}
     private fun downloads(){mode="downloads";title.text="다운로드";subtitle.text="이 앱에서 받은 파일";actions.removeAllViews();body.removeAllViews();val list=File(getExternalFilesDir(null),"Downloads").listFiles()?.sortedByDescending{it.lastModified()}.orEmpty();body.addView(text("DOWNLOADED  ·  ${list.size}개",11f,muted).apply{letterSpacing=.06f;setTypeface(null,Typeface.BOLD);setPadding(dp(4),dp(12),0,dp(9))});list.forEach{f->entryRow(f.name,fileBadge(f.name),"${bytes(f.length())}  ·  ${date(f.lastModified())}",false){val uri=FileProvider.getUriForFile(this,"$packageName.files",f);if(f.extension.equals("apk",true))installApk(uri)else{val mime=android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(f.extension.lowercase())?:"application/octet-stream";openUri(uri,mime)}}};if(list.isEmpty())body.addView(text("아직 다운로드한 파일이 없습니다.",16f,muted))}
     private fun openUri(u:Uri,mime:String?){if(mime=="application/vnd.android.package-archive"){installApk(u);return};if(mime?.startsWith("video/")==true){openLocalVideo(u);return};try{val intent=Intent(Intent.ACTION_VIEW).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);if(mime==null)intent.data=u else intent.setDataAndType(u,mime);startActivity(intent)}catch(e:ActivityNotFoundException){AlertDialog.Builder(this).setMessage("파일은 저장되어 있습니다. 이 파일을 열 수 있는 앱이 설치되어 있지 않습니다.").setPositiveButton("확인",null).show()}}
-    private fun updatePrefs()=getSharedPreferences("p4_update",0)
-    private fun updateManifestUrl()=updatePrefs().getString("manifest_url",null)?.trim().orEmpty().ifBlank{BuildConfig.UPDATE_MANIFEST_URL.trim()}
     private fun checkAppUpdate(showLatest:Boolean=true){
-        val saved=updateManifestUrl();if(saved.isBlank()){
-            val edit=EditText(this).apply{hint="https://github.com/OWNER/REPO/releases/latest/download/update.json";inputType=android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI}
-            AlertDialog.Builder(this).setTitle("업데이트 주소 설정").setMessage("GitHub Release의 update.json 고정 주소를 입력하세요.").setView(edit).setNegativeButton("취소",null).setPositiveButton("저장"){_,_->val url=edit.text.toString().trim();if(url.startsWith("https://")){updatePrefs().edit().putString("manifest_url",url).apply();checkAppUpdate()}else state.text="HTTPS 업데이트 주소가 필요합니다"}.show();return
-        }
         task("업데이트 확인 중"){
-            val info=appUpdater.check(saved)
+            val info=appUpdater.check(AppUpdater.DEFAULT_MANIFEST_URL)
             runOnUiThread{
-                if(info.versionCode<=BuildConfig.VERSION_CODE){if(showLatest)AlertDialog.Builder(this).setTitle("최신 버전입니다").setMessage("설치됨 v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})").setPositiveButton("확인",null).setNeutralButton("주소 변경"){_,_->updatePrefs().edit().remove("manifest_url").apply();checkAppUpdate()}.show()}
-                else AlertDialog.Builder(this).setTitle("P4 Files v${info.versionName} 업데이트").setMessage("설치됨 v${BuildConfig.VERSION_NAME}\n새 버전 v${info.versionName}\n\n${info.notes}\n\n차량 정책상 P4 Files에서 직접 설치하지 않고 순정 Download 폴더로 넘깁니다.").setNegativeButton("나중에",null).setNeutralButton("주소 변경"){_,_->updatePrefs().edit().remove("manifest_url").apply();checkAppUpdate()}.setPositiveButton("다운로드"){_,_->downloadAppUpdate(info)}.show()
+                if(info.versionCode<=BuildConfig.VERSION_CODE){if(showLatest)AlertDialog.Builder(this).setTitle("최신 버전입니다").setMessage("설치됨 v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})").setPositiveButton("확인",null).show()}
+                else AlertDialog.Builder(this).setTitle("P4 Files v${info.versionName} 업데이트").setMessage("설치됨 v${BuildConfig.VERSION_NAME}\n새 버전 v${info.versionName}\n\n${info.notes}\n\n차량 정책상 P4 Files에서 직접 설치하지 않고 순정 Download 폴더로 넘깁니다.").setNegativeButton("나중에",null).setPositiveButton("다운로드"){_,_->downloadAppUpdate(info)}.show()
             }
         }
     }

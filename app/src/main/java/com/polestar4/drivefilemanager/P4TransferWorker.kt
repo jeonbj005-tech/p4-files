@@ -20,8 +20,14 @@ class P4TransferWorker(ctx:Context,params:WorkerParameters):Worker(ctx,params){
         return try{
             val api=DriveApi(applicationContext)
             if(task.kind=="UPLOAD"){
-                if(task.size>0)api.uploadResumable(Uri.parse(task.source),task.name,task.mime,task.parent,task.size,task.session,{session->TransferStore.update(applicationContext,id){it.copy(session=session)}},{n->checkpoint(id,task,n)})
-                else api.upload(Uri.parse(task.source),task.name,task.mime,task.parent){n->checkpoint(id,task,n)}
+                if(task.size==0L)api.uploadEmpty(Uri.parse(task.source),task.name,task.mime,task.parent)
+                else api.uploadResumable(Uri.parse(task.source),task.name,task.mime,task.parent,task.size,task.session,{session->TransferStore.update(applicationContext,id){it.copy(session=session)}},{n->checkpoint(id,task,n)})
+            }
+            else if(task.kind=="DVR_UPLOAD"){
+                val dashcam=DashcamApi.shared
+                dashcam.withFileList("drive-upload"){
+                    api.uploadResumableFrom({offset->dashcam.openStream(task.source,offset)},task.name,task.mime,task.parent,task.size,task.session,{session->TransferStore.update(applicationContext,id){it.copy(session=session)}},{n->checkpoint(id,task,n)})
+                }
             }else{
                 val dir=File(applicationContext.getExternalFilesDir(null),"Downloads").apply{mkdirs()};val safe=task.name.replace(Regex("[\\\\/:*?\"<>|]"),"_").take(150).ifBlank{"file"};var out=File(dir,safe);var n=1;while(out.exists())out=File(dir,"${n++}_$safe")
                 val temp=File(applicationContext.cacheDir,"transfer-$id.part")
@@ -38,7 +44,7 @@ class P4TransferWorker(ctx:Context,params:WorkerParameters):Worker(ctx,params){
         if(Build.VERSION.SDK_INT>=26)(applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(NotificationChannel(CHANNEL,"P4 파일 전송",NotificationManager.IMPORTANCE_LOW))
         val percent=if(task.size>0)((done*100/task.size).coerceIn(0,100)).toInt() else 0
         val cancelIntent=try{WorkManager.getInstance(applicationContext).createCancelPendingIntent(UUID.fromString(task.workId))}catch(_:Exception){null}
-        val builder=NotificationCompat.Builder(applicationContext,CHANNEL).setSmallIcon(R.drawable.p4_files_icon).setContentTitle(if(task.kind=="UPLOAD")"Drive 업로드" else "Drive 다운로드").setContentText(task.name).setOnlyAlertOnce(true).setOngoing(true).setProgress(100,percent,task.size<=0)
+        val builder=NotificationCompat.Builder(applicationContext,CHANNEL).setSmallIcon(R.drawable.p4_files_icon).setContentTitle(if(task.kind!="DOWNLOAD")"Drive 업로드" else "Drive 다운로드").setContentText(task.name).setOnlyAlertOnce(true).setOngoing(true).setProgress(100,percent,task.size<=0)
         if(cancelIntent!=null)builder.addAction(0,"취소",cancelIntent)
         val notification=builder.build()
         return if(Build.VERSION.SDK_INT>=29)ForegroundInfo(task.id.hashCode(),notification,ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC) else ForegroundInfo(task.id.hashCode(),notification)

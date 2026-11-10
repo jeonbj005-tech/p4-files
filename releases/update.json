@@ -1,7 +1,7 @@
 {
-  "versionCode": 53,
-  "versionName": "1.43",
-  "apkUrl": "https://github.com/jeonbj005-tech/p4-files/releases/latest/download/P4-Files-v1.43.apk",
-  "sha256": "DA430EC0464D5B80E449342043EEBC891E0BBF7EA264C7FDBA2B224A68C82AB1",
-  "notes": "업데이트 최신 manifest 주소를 앱에 기본 포함하여 주소 입력을 제거"
+  "versionCode": 54,
+  "versionName": "1.44",
+  "apkUrl": "https://github.com/jeonbj005-tech/p4-files/releases/download/v1.44/P4-Files-v1.44.apk",
+  "sha256": "61B95C2F0B814CE0C3966F6D6E729D6D4FE6C037CE0C78BF79FC216312EAED57",
+  "notes": "대시캠 영상을 차량에 복사하지 않고 Drive로 직접 업로드합니다. 업데이트 주소를 앱에 고정했습니다."
 }

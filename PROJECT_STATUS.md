@@ -1,5 +1,13 @@
 # P4 Files 개발 현황
 
+2026-11-10 · v1.44 / versionCode 54
+
+- 대시캠 Drive 업로드: 영상을 차량 Downloads에 먼저 복사하던 경로를 없애고 DVR 응답을 1MB 단위로 Drive에 직접 스트리밍한다. 일반 SAF 업로드도 파일 크기 미상일 때 전체 캐시 복사를 하지 않는다.
+- 업데이트: GitHub 최신 manifest URL을 앱 코드에 고정하고 주소 입력/변경 대화상자를 제거했다.
+- 검증: `lintDebug`, `assembleDebug`, `assembleRelease` 성공. APK package/version 및 기존 차량 설치본과 같은 서명 SHA-1 확인.
+- APK: `releases/P4-Files-v1.44.apk`, SHA-256 `61B95C2F0B814CE0C3966F6D6E729D6D4FE6C037CE0C78BF79FC216312EAED57`.
+- GitHub 릴리스: 준비 중. 차량 실기기 업로드·업데이트와 DVR Range 응답은 미검증.
+
 2026-11-02 · v1.43 / versionCode 53
 
 - 시작 동작: 캐시를 먼저 표시하고 현재 달 DVR 목록을 앱 실행당 한 번 갱신한다. 완료된 과거 달은 월 캐시를 사용한다.
