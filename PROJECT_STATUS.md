@@ -8,7 +8,8 @@
 - 권한: 기존 INTERNET, REQUEST_INSTALL_PACKAGES, FileProvider만 사용. 특권 설치 우회 권한 추가 없음.
 - 검증: `lintDebug`, `assembleDebug`, `assembleRelease` 성공. APK package/version/minSdk/signature/hash/size 확인.
 - APK: `releases/P4-Files-v1.45.apk`, 6,412,314 bytes, SHA-256 `59D077113DC448B514A7797CA3880570BEDF6F3F3F66ADC1DB6AA00D98B35756`.
-- GitHub 차량 업데이트 경로 및 Polestar 4 설치 UI는 실차 미검증. 자동 업데이트/재개 다운로드 시나리오 테스트는 미실행.
+- 에뮬레이터(API 31)에서 v1.45 설치·실행과 최신 manifest 확인 성공. v1.44는 새 버전 감지 후 다운로드 중 같은 Downloads 파일을 다시 복사해 `ENOENT`로 실패하는 것을 재현했고, v1.45는 APK를 `Updates/`로 분리.
+- 따라서 v1.44에서 첫 v1.45 업데이트는 APK 직접 설치/USB 사이드로드가 필요할 수 있음. Polestar 4 실차 설치 및 자동 재개 다운로드는 미검증.
 
 2026-11-10 · v1.44 / versionCode 54
 

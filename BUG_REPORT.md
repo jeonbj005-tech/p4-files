@@ -184,6 +184,15 @@
 - 빌드/Lint: `lintDebug`, `assembleDebug`, `assembleRelease` 통과. 자동 시나리오와 차량 설치는 미검증.
 - 위험: Android Automotive가 GitHub 접근 또는 패키지 설치를 제한할 수 있음. 기존 서명 키와 공개 Release asset이 유지되어야 업데이트 가능.
 
+### 에뮬레이터 실행 확인 (2026-11-11)
+
+- 환경: `CameraAlertSettingsPreview32` AVD, Android 12 계열 API 31, 1080×600 차량 프로필을 1920×1080으로 표시. Polestar 순정 AAOS 이미지가 아닌 일반 Android 시스템 이미지.
+- v1.45: 설치와 MainActivity 실행 성공, 크래시 없음. 앱의 `업데이트` 버튼에서 GitHub manifest를 읽고 “최신 버전입니다 / 설치됨 v1.45 (55)” 확인.
+- v1.44 → v1.45: 구버전이 manifest를 읽고 새 버전을 찾는 것까지 성공. 다운로드를 누르면 `/storage/emulated/0/Android/data/com.polestar4.drivefilemanager/files/Downloads/P4-Files-v1.45.apk: open failed: ENOENT`로 실패.
+- 원인 확인: v1.44 `AppUpdater.download()`가 위 경로에 APK를 만든 뒤, `MainActivity.downloadAppUpdate()`가 같은 경로·파일명으로 `file.copyTo(local, overwrite=true)`를 다시 수행한다. 동일 원본/대상 파일을 덮어쓰면서 원본이 사라지는 흐름과 재현 오류가 일치한다.
+- v1.45 수정: 다운로드 위치를 앱 전용 `Updates/`로 분리하고 중복 복사를 제거. v1.44 설치본은 자기 코드를 바꿀 수 없으므로 첫 v1.45 설치는 GitHub APK 직접 설치 또는 USB 사이드로드가 필요할 수 있다.
+- DVR 확인 제한: 에뮬레이터에 차량 DVR 서비스가 없어 `198.18.37.20:80` 연결이 실패. DVR 목록·재생·차량 설치 정책은 실차에서 별도 확인 필요.
+
 ## 아래는 과거 보고 및 구현 이력
 
 ## BUG-001: 다운로드한 APK의 `열기`가 패키지 설치 화면을 실행하지 않음
