@@ -1,7 +1,11 @@
 {
-  "versionCode": 35,
-  "versionName": "1.25",
-  "apkUrl": "https://github.com/OWNER/REPOSITORY/releases/latest/download/P4-Files.apk",
-  "sha256": "APK_SHA256_64_HEX_CHARACTERS",
-  "notes": "Release notes"
+  "packageName": "com.polestar4.drivefilemanager",
+  "versionCode": 55,
+  "versionName": "1.45",
+  "minimumSdk": 26,
+  "apkUrl": "https://github.com/jeonbj005-tech/p4-files/releases/download/v1.45/P4-Files-v1.45.apk",
+  "sha256": "59d077113dc448b514a7797ca3880570bedf6f3f3f66adc1db6aa00d98b35756",
+  "size": 6412314,
+  "signingCertificateSha256": "7d48cdbf4bd2898796294e6ab8a9626353375ae6a43eb98a661207079da9b756",
+  "notes": "업데이트 주소 고정, APK 패키지·버전·최소 API·크기·SHA-256·서명 검증, 재개 다운로드와 설치 결과 확인"
 }

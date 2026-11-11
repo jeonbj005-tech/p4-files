@@ -1,49 +1,36 @@
-# GitHub Releases 업데이트 설정
+# GitHub Releases 앱 업데이트
 
-P4 Files v1.25부터 Google Drive 권한과 무관한 HTTPS 업데이트를 지원한다.
+P4 Files는 저장소 주소를 앱에 고정해 최신 `update.json`을 확인한다. 저장소와 Release는 APK를 차량에서 받을 수 있도록 공개 상태여야 한다.
 
-## 1. GitHub 저장소 준비
+## Release assets
 
-이 프로젝트를 GitHub 저장소에 올린다. 저장소는 APK를 차량에서 내려받을 수 있도록 공개 저장소를 권장한다. 비공개 저장소의 Release 다운로드에는 인증 토큰이 필요하므로 현재 차량 업데이트 기능과 맞지 않는다.
-
-## 2. Release 파일
-
-각 Release에는 버전이 붙은 APK와 `update.json`을 첨부한다.
-
-- `P4-Files-v<versionName>.apk` (예: `P4-Files-v1.44.apk`)
-- `update.json`
-
-`update.json` 형식:
-
-```json
-{
-  "versionCode": 35,
-  "versionName": "1.25",
-  "apkUrl": "https://github.com/OWNER/REPOSITORY/releases/latest/download/P4-Files.apk",
-  "sha256": "P4-Files.apk의 SHA-256 64자리 대문자 값",
-  "notes": "업데이트 설명"
-}
-```
-
-`OWNER`와 `REPOSITORY`는 실제 GitHub 계정과 저장소 이름으로 바꾼다. 임의 값으로 APK에 내장하지 않는다.
-
-## 3. 업데이트 주소
-
-최신 manifest 주소는 앱 소스에 고정되어 있어 차량에서 주소를 입력할 필요가 없다.
+각 버전 Release에 `P4-Files-v<versionName>.apk`와 `update.json`을 올린다. 앱은 아래의 latest manifest URL만 사용하며, APK URL은 버전별 Release 경로와 파일명을 검증한다.
 
 ```text
 https://github.com/jeonbj005-tech/p4-files/releases/latest/download/update.json
 ```
 
-차량에서는 P4 Files의 `앱 업데이트`를 눌러 최신 버전을 확인한다.
+```json
+{
+  "packageName": "com.polestar4.drivefilemanager",
+  "versionCode": 55,
+  "versionName": "1.45",
+  "minimumSdk": 26,
+  "apkUrl": "https://github.com/jeonbj005-tech/p4-files/releases/download/v1.45/P4-Files-v1.45.apk",
+  "sha256": "APK SHA-256 64자리",
+  "size": 12345678,
+  "signingCertificateSha256": "서명 인증서 SHA-256 64자리",
+  "notes": "업데이트 설명"
+}
+```
 
-## 4. 업데이트 동작
+릴리스 작업은 실제 APK에서 `size`, APK SHA-256, 서명 인증서 SHA-256을 계산해 manifest와 Release asset에 기록해야 한다. 예시는 [`update-manifest.example.json`](update-manifest.example.json) 참고.
 
-1. HTTPS로 `update.json`을 읽는다.
-2. 설치된 `versionCode`와 새 버전을 비교한다.
-3. 새 버전이면 APK를 앱 다운로드 폴더에 저장한다.
-4. 다운로드한 APK의 SHA-256을 검증한다.
-5. APK를 공용 `Download`에 저장하고 크기·SHA-256을 검증한다.
-6. 차량 순정 다운로드/파일 앱을 연다. 거기서 APK를 선택해 설치한다.
+## 앱 동작
 
-P4 Files가 직접 설치를 시작하지 않는 것은 차량에서 앱 출처 설치가 제한될 수 있기 때문이다. 선택 저장 위치로 저장한 경우에도 차량 순정 파일 앱에서 APK를 연다. SHA-256이 다르면 완료 안내를 표시하지 않는다.
+1. 앱 시작 후 하루에 한 번 최신 manifest를 확인하고, 새 버전이면 백그라운드로 내려받는다. 수동 `업데이트` 버튼은 즉시 확인한다.
+2. 패키지, 버전, 최소 Android API, 저장소 URL, 크기, APK SHA-256, 현재 설치본과 같은 서명을 확인한다. 다운로드 중단은 Range 요청으로 이어받고, 검증 완료 APK만 설치 UI에 전달한다.
+3. 설치는 Android 시스템 확인 화면에서 사용자가 승인한다. 설치 출처 권한이 차량에서 제한되면 Download/USB 저장을 안내한다. APK 저장은 설치 성공으로 간주하지 않는다.
+4. 시스템 화면에서 돌아오면 설치된 versionCode와 서명을 확인한다.
+
+전체 경로, 권한 비교, API 호환성, 미실행 테스트 항목은 [`docs/AUTO_UPDATE_FLOW.md`](docs/AUTO_UPDATE_FLOW.md)에 기록한다.
