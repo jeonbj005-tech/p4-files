@@ -268,3 +268,14 @@ APK 다운로드가 완전히 끝난 뒤 패키지 설치 화면이 실행되어
 - 업데이트 문제: AAOS 정책상 P4 Files 자체가 알 수 없는 앱 설치 권한을 받을 수 없음.
 - 수정(v1.31): APK는 공용 Download에 저장하고, 설치 시도/권한 설정 버튼 대신 순정 Download 파일 앱을 기본 설치 경로로 사용.
 
+- APK 파일 또는 `FileProvider` URI 접근 실패
+
+# 2026-11-12 — P4 Files 앱 전용 업데이트 저장소
+
+- 변경: 업데이트 APK를 앱 내부 `files/Updates/`에 저장하고 읽기 전용 `DocumentsProvider`를 `P4 Files 업데이트 저장소`로 DocumentsUI에 공개.
+- 설치 경로: Android `ACTION_OPEN_DOCUMENT`에서 사용자가 저장소와 APK를 선택한다. 앱은 provider authority, 예상 파일 크기와 SHA-256을 검사한 뒤 시스템 패키지 설치기로 전달한다. 최종 설치 승인은 Android가 요구한다.
+- 권한: provider에 `android:permission="android.permission.MANAGE_DOCUMENTS"`와 `grantUriPermissions=true`를 선언했으며, 앱에는 `MANAGE_DOCUMENTS` `uses-permission`을 추가하지 않음. `INSTALL_PACKAGES` 등 silent install 권한·경로 없음.
+- 호환: v1.45에서 설정 복귀 대기 중이던 FileProvider URI를 위해 기존 external `Updates/` 경로를 유지. 내부 저장소 APK는 앱 삭제 시 제거됨.
+- 검증: `lintDebug`, `assembleDebug`, `assembleRelease` 통과. API 31 AVD에서 DocumentsUI의 `P4 Files 업데이트 저장소` 루트와 내부에 둔 v1.46 APK 목록 표시를 확인.
+- 테스트 상태: `testDebugUnitTest`는 기존 `DvrStructureTest` runner가 `ClassNotFoundException`으로 테스트 본문 실행 전에 실패. 이번 변경을 위한 자동 테스트는 추가하지 않음.
+- 미검증: 앱 내 설치기 인계부터 설치 완료까지의 전체 end-to-end 흐름, Polestar 4 DocumentsUI에서 root 노출 및 설치, 차량 정책의 설치 승인.

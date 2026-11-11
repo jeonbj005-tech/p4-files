@@ -57,18 +57,18 @@ class AppUpdater(private val context: Context) {
         validateRelease(info)
         require(info.versionCode > installedVersionCode()) { "새 버전이 아니므로 설치를 시작하지 않습니다." }
 
-        val directory = File(context.getExternalFilesDir(null) ?: throw IOException("업데이트 저장소를 사용할 수 없습니다."), "Updates")
+        val directory = UpdateDocumentsProvider.updateDirectory(context)
         if (!directory.isDirectory && !directory.mkdirs()) throw IOException("업데이트 저장 폴더를 만들지 못했습니다.")
         val target = File(directory, "$APK_NAME${info.versionName}.apk")
         val temp = File(directory, "${target.name}.part")
-        if (target.isFile && runCatching { verifyApk(target, info) }.isSuccess) return target
+        if (target.isFile && runCatching { verifyApk(target, info) }.isSuccess) return target.also { UpdateDocumentsProvider.notifyRepositoryChanged(context) }
         if (target.exists() && !target.delete()) throw IOException("검증되지 않은 이전 APK를 교체하지 못했습니다.")
         if (temp.length() > info.size && !temp.delete()) throw IOException("손상된 다운로드 조각을 정리하지 못했습니다.")
         if (temp.isFile && temp.length() == info.size) {
             try {
                 verifyApk(temp, info)
                 if (!temp.renameTo(target)) throw IOException("검증된 APK를 저장하지 못했습니다.")
-                return target
+                return target.also { UpdateDocumentsProvider.notifyRepositoryChanged(context) }
             } catch (e: Exception) {
                 temp.delete()
                 throw e
@@ -126,7 +126,7 @@ class AppUpdater(private val context: Context) {
         try {
             verifyApk(temp, info)
             if (!temp.renameTo(target)) throw IOException("검증된 APK를 저장하지 못했습니다.")
-            return target
+            return target.also { UpdateDocumentsProvider.notifyRepositoryChanged(context) }
         } catch (e: Exception) {
             temp.delete()
             throw e

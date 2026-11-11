@@ -1,5 +1,14 @@
 # P4 Files 개발 현황
 
+2026-11-12 · v1.46 / versionCode 56
+
+- 업데이트 저장소: 검증한 APK를 앱 내부 `files/Updates/`에 저장하고 읽기 전용 `DocumentsProvider`를 `P4 Files 업데이트 저장소`로 시스템 문서 선택기에 공개.
+- 설치: 설치 버튼에서 `ACTION_OPEN_DOCUMENT`를 열고 사용자가 가상 저장소의 APK를 선택. provider authority·크기·SHA-256을 재확인해 Android 설치 화면으로 전달하며, 사용자 승인과 설치 후 버전·서명 확인은 유지.
+- 권한/호환: 앱은 특권 `MANAGE_DOCUMENTS`를 요청하지 않는다. Provider에만 시스템 접근 제한을 선언했고, 기존 external `FileProvider` 경로는 v1.45 대기 설치 및 저장 fallback용으로 유지.
+- 검증: `lintDebug`, `assembleDebug`, `assembleRelease` 성공. API 31 AVD의 DocumentsUI에서 가상 저장소와 내부 v1.46 APK 표시 확인. 실제 설치 완료 및 Polestar 차량 동작은 미검증.
+- APK: `releases/P4-Files-v1.46.apk`, 6,420,506 bytes, SHA-256 `78C15F485DC54C9D82FD201AC69805153A1EC84C8CFDAB5923DA2C610AD2A1F2`. 이전 배포본과 같은 서명 인증서 SHA-256 `7D48CDBF4BD2898796294E6AB8A9626353375AE6A43EB98A661207079DA9B756`.
+- 제한: 앱 제거 시 내부 APK도 삭제된다. 차량 DocumentsUI의 provider 검색 및 설치기 전달은 실차에서 확인해야 한다.
+
 2026-11-11 · v1.45 / versionCode 55
 
 - 업데이트 주소: GitHub 최신 manifest URL을 앱에 고정. 앱 시작 시 하루 한 번 확인하고 새 APK를 내려받으며, 수동 업데이트 확인도 유지.

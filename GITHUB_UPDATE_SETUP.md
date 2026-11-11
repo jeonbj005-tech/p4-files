@@ -13,10 +13,10 @@ https://github.com/jeonbj005-tech/p4-files/releases/latest/download/update.json
 ```json
 {
   "packageName": "com.polestar4.drivefilemanager",
-  "versionCode": 55,
-  "versionName": "1.45",
+  "versionCode": 56,
+  "versionName": "1.46",
   "minimumSdk": 26,
-  "apkUrl": "https://github.com/jeonbj005-tech/p4-files/releases/download/v1.45/P4-Files-v1.45.apk",
+  "apkUrl": "https://github.com/jeonbj005-tech/p4-files/releases/download/v1.46/P4-Files-v1.46.apk",
   "sha256": "APK SHA-256 64자리",
   "size": 12345678,
   "signingCertificateSha256": "서명 인증서 SHA-256 64자리",
@@ -32,5 +32,7 @@ https://github.com/jeonbj005-tech/p4-files/releases/latest/download/update.json
 2. 패키지, 버전, 최소 Android API, 저장소 URL, 크기, APK SHA-256, 현재 설치본과 같은 서명을 확인한다. 다운로드 중단은 Range 요청으로 이어받고, 검증 완료 APK만 설치 UI에 전달한다.
 3. 설치는 Android 시스템 확인 화면에서 사용자가 승인한다. 설치 출처 권한이 차량에서 제한되면 Download/USB 저장을 안내한다. APK 저장은 설치 성공으로 간주하지 않는다.
 4. 시스템 화면에서 돌아오면 설치된 versionCode와 서명을 확인한다.
+
+APK는 앱 내부 `files/Updates/`에 보관한다. `ACTION_OPEN_DOCUMENT` 파일 선택기에서 `P4 Files 업데이트 저장소`를 선택해 APK를 고르면, 앱은 공급자 authority·크기·SHA-256을 확인하고 Android 설치기로 읽기 권한을 전달한다. 저장소는 읽기 전용이고, `MANAGE_DOCUMENTS`는 공급자의 시스템 접근 제한으로만 선언한다.
 
 전체 경로, 권한 비교, API 호환성, 미실행 테스트 항목은 [`docs/AUTO_UPDATE_FLOW.md`](docs/AUTO_UPDATE_FLOW.md)에 기록한다.

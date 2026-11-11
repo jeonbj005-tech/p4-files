@@ -792,8 +792,8 @@ class MainActivity:Activity(){
         updateWorker.execute{try{
             val info=appUpdater.check();prefs.edit().putLong("last_auto_check",System.currentTimeMillis()).apply()
             if(info.versionCode>appUpdater.installedVersionCode()){
-                val file=appUpdater.download(info){_,_->};val uri=FileProvider.getUriForFile(this,"$packageName.updates",file)
-                runOnUiThread{if(!isFinishing&&!isDestroyed)showDownloadedUpdate(info,uri,file.name)}
+                val file=appUpdater.download(info){_,_->}
+                runOnUiThread{if(!isFinishing&&!isDestroyed)showDownloadedUpdate(info,file)}
             }
         }catch(e:Exception){Log.w("P4Update","Automatic update check failed: ${e.javaClass.simpleName}")}
         finally{updateRunning.set(false)}}
@@ -802,8 +802,7 @@ class MainActivity:Activity(){
         if(!updateRunning.compareAndSet(false,true)){state.text="업데이트 작업이 이미 진행 중입니다";return}
         updateWorker.execute{try{
             val file=appUpdater.download(info){done,total->if(total>0)runOnUiThread{if(!isFinishing)state.text="업데이트 ${done*100/total}%"}}
-            val uri=FileProvider.getUriForFile(this,"$packageName.updates",file)
-            runOnUiThread{if(!isFinishing&&!isDestroyed)showDownloadedUpdate(info,uri,file.name)}
+            runOnUiThread{if(!isFinishing&&!isDestroyed)showDownloadedUpdate(info,file)}
         }catch(e:Exception){runOnUiThread{if(!isFinishing)AlertDialog.Builder(this).setTitle("업데이트 다운로드 실패").setMessage(e.message?:e.javaClass.simpleName).setPositiveButton("확인",null).show()}}
         finally{updateRunning.set(false)}}
     }
@@ -815,28 +814,44 @@ class MainActivity:Activity(){
         }
         throw java.io.IOException("이 Android 버전에서는 공용 Download 저장을 지원하지 않습니다")
     }
-    private fun showDownloadedUpdate(info:UpdateInfo,uri:Uri,name:String){
+    private fun showDownloadedUpdate(info:UpdateInfo,file:File){
+        val name=file.name
+        val sourceUri=FileProvider.getUriForFile(this,"$packageName.updates",file)
         state.text="P4 Files v${info.versionName} 다운로드 및 서명 검증 완료"
-        AlertDialog.Builder(this).setTitle("P4 Files v${info.versionName} 업데이트 준비 완료").setMessage("$name · ${bytes(info.size)}\n패키지, 버전, SHA-256, 설치 서명을 확인했습니다.\n\n시스템 설치 화면에서 최종 설치를 승인하세요.").setNegativeButton("나중에",null).setNeutralButton("저장 위치 선택"){_,_->chooseUpdateLocation(uri,name)}.setPositiveButton("시스템 설치"){_,_->installVerifiedUpdate(info,uri)}.show()
+        AlertDialog.Builder(this).setTitle("P4 Files v${info.versionName} 업데이트 준비 완료").setMessage("$name · ${bytes(info.size)}\n패키지, 버전, SHA-256, 설치 서명을 확인했습니다.\n\n시스템 파일 선택기에서 P4 Files 업데이트 저장소를 열어 APK를 선택하세요. 설치는 Android 시스템 화면에서 승인해야 합니다.").setNegativeButton("나중에",null).setNeutralButton("저장 위치 선택"){_,_->chooseUpdateLocation(sourceUri,name)}.setPositiveButton("시스템 설치"){_,_->installVerifiedUpdate(info,sourceUri)}.show()
     }
-    private fun installVerifiedUpdate(info:UpdateInfo,uri:Uri){
+    private fun installVerifiedUpdate(info:UpdateInfo,sourceUri:Uri){
         val prefs=updatePrefs()
         if(Build.VERSION.SDK_INT>=26&&!packageManager.canRequestPackageInstalls()){
-            prefs.edit().putString("pending_update_uri",uri.toString()).putLong("pending_version",info.versionCode).putString("pending_signer",info.signingCertificateSha256).putString("pending_name","P4-Files-v${info.versionName}.apk").putLong("pending_size",info.size).putString("pending_sha",info.sha256).apply()
-            AlertDialog.Builder(this).setTitle("시스템 설치 권한 필요").setMessage("Android 시스템이 설치를 승인해야 합니다. 설정이 차량에서 열리지 않으면 순정 Download 또는 USB에 저장해 설치할 수 있습니다.").setNegativeButton("취소"){_,_->clearPendingUpdate()}.setNeutralButton("순정 Download에 저장"){_,_->clearPendingUpdate();saveUpdateToPublicDownloads(uri,"P4-Files-v${info.versionName}.apk",info.size,info.sha256)}.setPositiveButton("설정 열기"){_,_->try{prefs.edit().putBoolean("update_settings_opened",true).apply();startActivity(Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,Uri.parse("package:$packageName")))}catch(_:Exception){clearPendingUpdate();saveUpdateToPublicDownloads(uri,"P4-Files-v${info.versionName}.apk",info.size,info.sha256)}}.show()
+            prefs.edit().putString("pending_update_source_uri",sourceUri.toString()).putLong("pending_version",info.versionCode).putString("pending_signer",info.signingCertificateSha256).putString("pending_name","P4-Files-v${info.versionName}.apk").putLong("pending_size",info.size).putString("pending_sha",info.sha256).apply()
+            AlertDialog.Builder(this).setTitle("시스템 설치 권한 필요").setMessage("Android 시스템이 설치를 승인해야 합니다. 설정이 차량에서 열리지 않으면 순정 Download 또는 USB에 저장해 설치할 수 있습니다.").setNegativeButton("취소"){_,_->clearPendingUpdate()}.setNeutralButton("순정 Download에 저장"){_,_->clearPendingUpdate();saveUpdateToPublicDownloads(sourceUri,"P4-Files-v${info.versionName}.apk",info.size,info.sha256)}.setPositiveButton("설정 열기"){_,_->try{prefs.edit().putBoolean("update_settings_opened",true).apply();startActivity(Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,Uri.parse("package:$packageName")))}catch(_:Exception){clearPendingUpdate();saveUpdateToPublicDownloads(sourceUri,"P4-Files-v${info.versionName}.apk",info.size,info.sha256)}}.show()
             return
         }
-        launchUpdateInstaller(uri,info.versionCode,info.signingCertificateSha256,"P4-Files-v${info.versionName}.apk")
+        prefs.edit().putString("pending_update_source_uri",sourceUri.toString()).putLong("pending_version",info.versionCode).putString("pending_signer",info.signingCertificateSha256).putString("pending_name","P4-Files-v${info.versionName}.apk").putLong("pending_size",info.size).putString("pending_sha",info.sha256).apply()
+        openUpdateDocumentPicker()
+    }
+    private fun openUpdateDocumentPicker(){
+        updatePrefs().edit().putBoolean("update_picker_opened",true).apply()
+        try{startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).setType("application/vnd.android.package-archive").addCategory(Intent.CATEGORY_OPENABLE),78)}
+        catch(e:Exception){AlertDialog.Builder(this).setCancelable(false).setTitle("업데이트 저장소를 열 수 없음").setMessage("시스템 파일 선택기가 P4 Files 업데이트 저장소를 열지 못했습니다. APK를 Download에 저장해 순정 파일 앱에서 설치할 수 있습니다.\n\n${e.message?:e.javaClass.simpleName}").setNegativeButton("닫기"){_,_->clearPendingUpdate()}.setPositiveButton("Download 저장"){_,_->val p=updatePrefs();val source=p.getString("pending_update_source_uri",null)?.let(Uri::parse);val name=p.getString("pending_name","P4-Files-update.apk").orEmpty();val size=p.getLong("pending_size",0L);val sha=p.getString("pending_sha","").orEmpty();clearPendingUpdate();if(source!=null)saveUpdateToPublicDownloads(source,name,size,sha)}.show()}
     }
     private fun launchUpdateInstaller(uri:Uri,versionCode:Long,signer:String,name:String){
-        updatePrefs().edit().remove("pending_update_uri").remove("update_settings_opened").putLong("pending_version",versionCode).putString("pending_signer",signer).putString("pending_name",name).putLong("pending_install_started",System.currentTimeMillis()).apply()
-        try{startActivityForResult(Intent(Intent.ACTION_INSTALL_PACKAGE).setDataAndType(uri,"application/vnd.android.package-archive").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION).putExtra(Intent.EXTRA_RETURN_RESULT,true).apply{clipData=android.content.ClipData.newRawUri("APK",uri)},77)}
-        catch(e:Exception){clearPendingUpdate();AlertDialog.Builder(this).setTitle("시스템 설치 화면을 열 수 없음").setMessage("차량 정책이 설치 요청을 거부했습니다. APK는 검증된 상태로 남아 있으니 Download 또는 USB에 저장해 순정 파일 앱에서 여세요.").setPositiveButton("확인",null).show()}
+        val prefs=updatePrefs()
+        prefs.edit().putLong("pending_version",versionCode).putString("pending_signer",signer).putString("pending_name",name).putLong("pending_install_started",System.currentTimeMillis()).apply()
+        try{
+            startActivityForResult(Intent(Intent.ACTION_INSTALL_PACKAGE).setDataAndType(uri,"application/vnd.android.package-archive").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION).putExtra(Intent.EXTRA_RETURN_RESULT,true).apply{clipData=android.content.ClipData.newRawUri("APK",uri)},77)
+            prefs.edit().remove("pending_update_uri").remove("pending_update_source_uri").remove("update_settings_opened").remove("update_picker_opened").apply()
+        }catch(e:Exception){
+            val source=prefs.getString("pending_update_source_uri",null)?.let(Uri::parse)?:prefs.getString("pending_update_uri",null)?.let(Uri::parse)
+            val size=prefs.getLong("pending_size",0L);val sha=prefs.getString("pending_sha","").orEmpty()
+            clearPendingUpdate()
+            AlertDialog.Builder(this).setTitle("시스템 설치 화면을 열 수 없음").setMessage("차량 정책이 설치 요청을 거부했습니다. 검증된 APK를 Download에 저장할 수 있습니다.\n\n${e.message?:e.javaClass.simpleName}").setNegativeButton("닫기",null).setPositiveButton("Download 저장"){_,_->if(source!=null)saveUpdateToPublicDownloads(source,name,size,sha)}.show()
+        }
     }
     private fun saveUpdateToPublicDownloads(source:Uri,name:String,size:Long,sha:String){
         updateWorker.execute{try{publishToPublicDownloads(source,name,size,sha);runOnUiThread{if(!isFinishing){state.text="검증된 APK를 Download에 저장했습니다";openSystemDownloads()}}}catch(e:Exception){runOnUiThread{if(!isFinishing)AlertDialog.Builder(this).setTitle("Download 저장 실패").setMessage(e.message?:e.javaClass.simpleName).setPositiveButton("확인",null).show()}}}
     }
-    private fun clearPendingUpdate(){updatePrefs().edit().remove("pending_update_uri").remove("update_settings_opened").remove("pending_version").remove("pending_signer").remove("pending_name").remove("pending_size").remove("pending_sha").remove("pending_install_started").apply()}
+    private fun clearPendingUpdate(){updatePrefs().edit().remove("pending_update_uri").remove("pending_update_source_uri").remove("update_settings_opened").remove("update_picker_opened").remove("pending_version").remove("pending_signer").remove("pending_name").remove("pending_size").remove("pending_sha").remove("pending_install_started").apply()}
     private fun verifyPendingUpdateInstall(resultCode:Int?=null){
         val prefs=updatePrefs();val expected=prefs.getLong("pending_version",0L);if(expected<=0)return
         val actual=runCatching{appUpdater.installedVersionCode()}.getOrDefault(0L);val expectedSigner=prefs.getString("pending_signer","").orEmpty();val actualSigner=runCatching{appUpdater.installedSignerSha256()}.getOrDefault("")
@@ -846,8 +861,15 @@ class MainActivity:Activity(){
     private fun resumePendingUpdateInstall(){
         val prefs=updatePrefs();val waiting=prefs.getString("pending_update_uri",null)
         if(waiting!=null){
+            val source=prefs.getString("pending_update_source_uri",null)?.let(Uri::parse)?:Uri.parse(waiting)
             if(Build.VERSION.SDK_INT<26||packageManager.canRequestPackageInstalls())launchUpdateInstaller(Uri.parse(waiting),prefs.getLong("pending_version",0L),prefs.getString("pending_signer","").orEmpty(),prefs.getString("pending_name","P4-Files-update.apk").orEmpty())
-            else if(prefs.getBoolean("update_settings_opened",false)){prefs.edit().remove("update_settings_opened").apply();state.text="설치 출처 허용이 아직 꺼져 있습니다";val uri=Uri.parse(waiting);val name=prefs.getString("pending_name","P4-Files-update.apk").orEmpty();val size=prefs.getLong("pending_size",0L);val sha=prefs.getString("pending_sha","").orEmpty();AlertDialog.Builder(this).setTitle("설치 권한이 허용되지 않음").setMessage("차량 설정에서 출처 설치를 켜지 못했습니다. APK를 Download나 USB에 저장해 순정 파일 앱에서 설치할 수 있습니다.").setNegativeButton("취소"){_,_->clearPendingUpdate()}.setPositiveButton("Download에 저장"){_,_->clearPendingUpdate();saveUpdateToPublicDownloads(uri,name,size,sha)}.show()}
+            else if(prefs.getBoolean("update_settings_opened",false)){prefs.edit().remove("update_settings_opened").apply();state.text="설치 출처 허용이 아직 꺼져 있습니다";val name=prefs.getString("pending_name","P4-Files-update.apk").orEmpty();val size=prefs.getLong("pending_size",0L);val sha=prefs.getString("pending_sha","").orEmpty();AlertDialog.Builder(this).setTitle("설치 권한이 허용되지 않음").setMessage("차량 설정에서 출처 설치를 켜지 못했습니다. APK를 Download나 USB에 저장해 순정 파일 앱에서 설치할 수 있습니다.").setNegativeButton("취소"){_,_->clearPendingUpdate()}.setPositiveButton("Download에 저장"){_,_->clearPendingUpdate();saveUpdateToPublicDownloads(source,name,size,sha)}.show()}
+            return
+        }
+        if(prefs.getBoolean("update_picker_opened",false))return
+        if(prefs.getBoolean("update_settings_opened",false)){
+            if(Build.VERSION.SDK_INT<26||packageManager.canRequestPackageInstalls()){prefs.edit().remove("update_settings_opened").apply();openUpdateDocumentPicker()}
+            else{prefs.edit().remove("update_settings_opened").apply();val source=prefs.getString("pending_update_source_uri",null)?.let(Uri::parse);val name=prefs.getString("pending_name","P4-Files-update.apk").orEmpty();val size=prefs.getLong("pending_size",0L);val sha=prefs.getString("pending_sha","").orEmpty();AlertDialog.Builder(this).setTitle("설치 권한이 허용되지 않음").setMessage("차량 설정에서 출처 설치를 켜지 못했습니다. APK를 Download나 USB에 저장해 순정 파일 앱에서 설치할 수 있습니다.").setNegativeButton("취소"){_,_->clearPendingUpdate()}.setPositiveButton("Download에 저장"){_,_->clearPendingUpdate();if(source!=null)saveUpdateToPublicDownloads(source,name,size,sha)}.show()}
             return
         }
         verifyPendingUpdateInstall()
@@ -881,11 +903,26 @@ class MainActivity:Activity(){
         try{startActivity(Intent(Intent.ACTION_INSTALL_PACKAGE).setData(uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION).putExtra(Intent.EXTRA_RETURN_RESULT,false).apply{clipData=android.content.ClipData.newRawUri("APK",uri)})}
         catch(e:Exception){AlertDialog.Builder(this).setTitle("APK 설치 실행 실패").setMessage("차량 패키지 설치기 또는 차량 정책이 설치 요청을 처리하지 못했습니다.\n\n${e.message?:e.javaClass.simpleName}").setPositiveButton("확인",null).show()}
     }
-    override fun onResume(){super.onResume();if(updatePrefs().getString("pending_update_uri",null)!=null){resumePendingUpdateInstall();return};val uri=pendingInstallUri;if(uri!=null&&(Build.VERSION.SDK_INT<26||packageManager.canRequestPackageInstalls())){pendingInstallUri=null;installApk(uri);return};verifyPendingUpdateInstall()}
+    override fun onResume(){super.onResume();val prefs=updatePrefs();if(prefs.getString("pending_update_uri",null)!=null||prefs.getBoolean("update_settings_opened",false)||prefs.getBoolean("update_picker_opened",false)){resumePendingUpdateInstall();return};val uri=pendingInstallUri;if(uri!=null&&(Build.VERSION.SDK_INT<26||packageManager.canRequestPackageInstalls())){pendingInstallUri=null;installApk(uri);return};verifyPendingUpdateInstall()}
     private fun back(){if(busy)return;when{mode=="drive" && remotePath.size>1->{remotePath.removeAt(remotePath.lastIndex);showDrive()};mode=="local" && localPath.size>1->{localPath.removeAt(localPath.lastIndex);showLocal()};mode=="dual"&&localPath.size>1->{localPath.removeAt(localPath.lastIndex);showDualPane()};mode=="dual"&&remotePath.size>1->{remotePath.removeAt(remotePath.lastIndex);showDualPane()};mode=="dual"->finish();mode!="home"->home();else->finish()}}
     @Deprecated("Legacy activity navigation") override fun onBackPressed(){back()}
     override fun onActivityResult(r:Int,c:Int,d:Intent?){super.onActivityResult(r,c,d)
         if(r==77){verifyPendingUpdateInstall(c);return}
+        if(r==78){
+            val uri=if(c==RESULT_OK)d?.data else null
+            if(uri==null){clearPendingUpdate();state.text="업데이트 저장소 선택 취소";return}
+            val prefs=updatePrefs();val size=prefs.getLong("pending_size",0L);val sha=prefs.getString("pending_sha","").orEmpty()
+            task("선택한 업데이트 확인 중"){
+                try{
+                    if(uri.authority!=UpdateDocumentsProvider.AUTHORITY)throw java.io.IOException("P4 Files 업데이트 저장소에서 APK를 선택하세요.")
+                    if(!verifyStoredApk(uri,size,sha))throw java.io.IOException("선택한 APK가 다운로드 검증본과 다릅니다.")
+                    runOnUiThread{launchUpdateInstaller(uri,prefs.getLong("pending_version",0L),prefs.getString("pending_signer","").orEmpty(),prefs.getString("pending_name","P4-Files-update.apk").orEmpty())}
+                }catch(e:Exception){
+                    runOnUiThread{val p=updatePrefs();val source=p.getString("pending_update_source_uri",null)?.let(Uri::parse);val name=p.getString("pending_name","P4-Files-update.apk").orEmpty();val expectedSize=p.getLong("pending_size",0L);val expectedSha=p.getString("pending_sha","").orEmpty();AlertDialog.Builder(this).setCancelable(false).setTitle("업데이트 APK 확인 실패").setMessage("${e.message?:e.javaClass.simpleName}\n\n검증된 APK를 Download에 저장해 순정 파일 앱에서 설치할 수 있습니다.").setNegativeButton("닫기"){_,_->clearPendingUpdate()}.setPositiveButton("Download 저장"){_,_->clearPendingUpdate();if(source!=null)saveUpdateToPublicDownloads(source,name,expectedSize,expectedSha)}.show()}
+                }
+            }
+            return
+        }
         if(r==authorizationRequestCode){
             if(c!=RESULT_OK||d==null){authFailed("OAUTH_ACCESS_DENIED","사용자가 Google 권한 승인을 취소했거나 승인 결과가 없습니다.");return}
             try{finishAuthorization(authorizationClient.getAuthorizationResultFromIntent(d))}catch(e:ApiException){authFailed(classifyAuthorizationError(e),"status=${e.statusCode}: ${e.message.orEmpty()}")}
