@@ -278,4 +278,5 @@ APK 다운로드가 완전히 끝난 뒤 패키지 설치 화면이 실행되어
 - 호환: v1.45에서 설정 복귀 대기 중이던 FileProvider URI를 위해 기존 external `Updates/` 경로를 유지. 내부 저장소 APK는 앱 삭제 시 제거됨.
 - 검증: `lintDebug`, `assembleDebug`, `assembleRelease` 통과. API 31 AVD에서 DocumentsUI의 `P4 Files 업데이트 저장소` 루트와 내부에 둔 v1.46 APK 목록 표시를 확인.
 - 테스트 상태: `testDebugUnitTest`는 기존 `DvrStructureTest` runner가 `ClassNotFoundException`으로 테스트 본문 실행 전에 실패. 이번 변경을 위한 자동 테스트는 추가하지 않음.
-- 미검증: 앱 내 설치기 인계부터 설치 완료까지의 전체 end-to-end 흐름, Polestar 4 DocumentsUI에서 root 노출 및 설치, 차량 정책의 설치 승인.
+- 검증: API 31 AVD에서 가상 저장소의 APK 선택, 재검증, Android 설치 확인 화면, 사용자 승인, versionCode 56 설치 확인까지 완료. 시험 출발본은 v1.46 코드를 가진 임시 debug versionCode 55.
+- 미검증: Polestar 4 실차 DocumentsUI의 root 노출, 차량 설치 정책과 실제 사용자 승인.
