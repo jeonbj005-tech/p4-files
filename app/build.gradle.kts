@@ -11,7 +11,7 @@ fun quotedBuildValue(name: String): String =
 
 android {
     namespace = "com.polestar4.drivefilemanager"; compileSdk = 35
-    defaultConfig { applicationId = "com.polestar4.drivefilemanager"; minSdk = 26; targetSdk = 35; versionCode = 59; versionName = "1.49"
+    defaultConfig { applicationId = "com.polestar4.drivefilemanager"; minSdk = 26; targetSdk = 35; versionCode = 60; versionName = "1.50"
         buildConfigField("String", "OAUTH_CLIENT_ID", "\"\"")
         buildConfigField("String", "OAUTH_CLIENT_SECRET", "\"\"")
         buildConfigField("String", "TV_OAUTH_CLIENT_ID", "\"\"")
@@ -25,7 +25,7 @@ android {
             buildConfigField("String", "TV_OAUTH_CLIENT_ID", quotedBuildValue("clientId"))
             buildConfigField("String", "TV_OAUTH_CLIENT_SECRET", quotedBuildValue("clientSecret"))
         }
-        create("phone") { dimension = "device"; manifestPlaceholders["appLabel"] = "P4 Files 확인" }
+        create("phone") { dimension = "device"; applicationIdSuffix = ".phone"; manifestPlaceholders["appLabel"] = "P4 Files 확인" }
     }
     buildFeatures { buildConfig = true }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }

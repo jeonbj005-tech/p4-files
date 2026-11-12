@@ -56,8 +56,9 @@ v1.13에서는 차량 2분할 저장소와 일반 로컬 폴더에 정렬·새�
 
 ## 빌드
 
-- applicationId: `com.polestar4.drivefilemanager`
-- versionName: `1.48`, versionCode `58`
+- 차량 applicationId: `com.polestar4.drivefilemanager`
+- 폰 applicationId: `com.polestar4.drivefilemanager.phone` (OAuth 패키지 중복을 피하려고 폰 flavor만 분리)
+- versionName: `1.50`, versionCode `60`
 - minSdk 26 / targetSdk 35
 - `assembleVehicleDebug` → 차량 APK
 - `assemblePhoneDebug` → 휴대폰 상태 확인 APK
@@ -69,11 +70,11 @@ v1.13에서는 차량 2분할 저장소와 일반 로컬 폴더에 정렬·새�
 
 현재 Cloud 프로젝트는 `P4 Files Drive Relay` (`p4-files-drive-relay`)이며 Drive API, 외부 테스트 동의 화면, `jeonbj005@gmail.com` 테스트 사용자를 구성했습니다. 차량 TV/Limited Input OAuth 클라이언트와 `drive.file`·`drive` 범위도 등록했습니다.
 
-1. Google Cloud Console에서 Google Drive API를 활성화하고 OAuth 동의 화면에 `drive.file`과 차량의 Google Play services 경로에서 쓰는 `drive` 범위를 등록합니다. 테스트 상태라면 차량과 폰에서 로그인할 Google 계정을 테스트 사용자에 등록합니다.
+1. Google Cloud Console에서 Google Drive API를 활성화하고 OAuth 동의 화면에 앱에서 쓰는 `drive.file` 및 전체 Drive 파일 탐색용 `drive` 범위를 등록합니다. 폰 상태 확인 화면은 `drive.file`만 요청합니다. 테스트 상태라면 차량과 폰에서 로그인할 Google 계정을 테스트 사용자에 등록합니다.
 2. **같은 Cloud 프로젝트 안에** OAuth 클라이언트를 각각 만듭니다.
    - 차량의 제한 입력 인증: `TVs and Limited Input devices`
-   - Android 앱 인증: `Android`, 패키지 `com.polestar4.drivefilemanager`, 현재 APK 서명 SHA-1 `A2:18:83:47:12:EC:30:FE:C4:8E:D5:C4:56:04:8E:FA:E4:9C:2E:3A`
-   - 현재는 Android 클라이언트 등록이 패키지+SHA-1 중복으로 거부되어 휴대폰 연결이 미완료입니다. 기존 Android OAuth 등록이 있는 프로젝트를 찾아 같은 프로젝트 정책을 맞춰야 합니다.
+   - Android 앱 인증: `Android`, 패키지 `com.polestar4.drivefilemanager.phone`, 현재 APK 서명 SHA-1 `A2:18:83:47:12:EC:30:FE:C4:8E:D5:C4:56:04:8E:FA:E4:9C:2E:3A`. Google Cloud의 `P4 Files Phone` 클라이언트로 등록했습니다.
+   - 폰 앱은 별도 applicationId로 설치되므로 기존 `P4 Files 확인` 앱과 앱 데이터가 자동 공유되지 않습니다. 차량 APK의 applicationId와 OAuth 클라이언트는 바뀌지 않습니다.
 3. 차량 OAuth 클라이언트의 ID와 secret을 `oauth.properties.template` 형식대로 저장소 루트의 로컬 `oauth.properties`에 입력합니다. 이 파일은 Git에서 제외됩니다. secret은 차량 배포 APK에서 추출 가능하므로 강한 비밀키처럼 취급할 수 없습니다.
 4. 차량용 APK를 다시 빌드해 차량에 설치합니다. 차량에서 `drive.file` 인증을 완료하고 `깨우기 테스트`를 시작합니다.
 5. 폰용 APK에서 `Drive 연결`을 눌러 Android OAuth 인증을 완료하고, 차량과 동일한 Google 계정을 선택합니다. 차량이 만든 `P4FilesWakeStatus.json` 상태와 기록이 표시됩니다.
@@ -83,5 +84,5 @@ OAuth 클라이언트가 서로 다른 Cloud 프로젝트에 있거나 APK의 �
 ## 실기기 검증 상태
 
 - 휴대폰에서 Google 전체 Drive 목록 조회 성공 이력 있음
-- v1.49 차량 APK는 OAuth 설정을 넣어 빌드합니다. Android OAuth 중복 등록 문제와 차량-폰 간 상태 JSON 왕복은 미검증
+- v1.50 차량·폰 APK와 Lint가 통과했고, 폰 앱은 Android 14 API 34 에뮬레이터에서 실행을 확인했습니다. Google 로그인과 차량-폰 상태 JSON 왕복은 미검증
 - Polestar 4 실차에서 차량 로그인, 백그라운드 상태 업로드, 폰 수신을 함께 확인해야 합니다.

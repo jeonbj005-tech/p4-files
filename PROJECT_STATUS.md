@@ -1,5 +1,15 @@
 # P4 Files 개발 현황
 
+2026-11-12 · 폰 OAuth 연결 / v1.50
+
+- 패키지+서명 중복 등록 오류를 피하려고 폰 flavor의 applicationId를 `com.polestar4.drivefilemanager.phone`으로 분리했다. 차량 applicationId와 서명 키는 유지한다.
+- Cloud 프로젝트 `P4 Files Drive Relay`에 Android 클라이언트 `P4 Files Phone`을 생성했고, 폰 패키지와 현재 APK SHA-1을 등록했다. OAuth consent는 테스트 모드이며 테스트 사용자만 쓸 수 있다.
+- 폰 상태 확인 화면은 전체 Drive 범위가 아닌 `drive.file`만 요청한다.
+- 새 폰 앱은 기존 phone APK와 다른 Android 앱으로 설치된다. 앱 데이터는 자동 이전되지 않는다.
+- v1.50 / versionCode 60 차량·폰 APK 빌드와 두 flavor Lint가 통과했다.
+- 폰 APK를 Android 14 API 34 에뮬레이터 `emulator-5558`에 설치해 `PhoneStatusActivity` 전면 실행을 확인했다. 최근 logcat에서 폰 앱 fatal exception은 없었다.
+- 폰의 Google 계정 OAuth 승인, 차량과 Drive 상태 JSON 왕복, Polestar 4 실차 동작은 미검증이다.
+
 2026-11-12 · OAuth 준비 / v1.49
 
 - Google Cloud 전용 프로젝트 `P4 Files Drive Relay` (`p4-files-drive-relay`) 생성, Drive API 활성화, 외부 테스트 동의 화면 생성 및 `jeonbj005@gmail.com` 테스트 사용자 등록 완료.
