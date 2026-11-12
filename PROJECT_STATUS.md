@@ -1,5 +1,14 @@
 # P4 Files 개발 현황
 
+2026-11-12 · v1.48 / versionCode 58 — 차량용·폰용 APK 분리
+
+- 차량 APK: `releases/P4-Files-v1.48.apk`, 8,103,835 bytes, SHA-256 `FE29F05A2F88F9957422D4EA27C790977FA89187D590EB1800D30F0309F4A191`, 시작 화면 `MainActivity`.
+- 폰 확인 APK: `releases/P4-Files-phone-v1.48.apk`, 8,305,381 bytes, SHA-256 `EE1F64861DA2A1B274E4F9E4E91D02FB0DA7956220248F8509FAF0727F88D5A9`, 시작 화면 `PhoneStatusActivity`; INTERNET 외 차량 백그라운드 권한은 없음.
+- 두 APK 모두 package `com.polestar4.drivefilemanager`, versionCode 58, minSdk 26, targetSdk 35, 기존 v1.47과 같은 Android Debug 서명 인증서 SHA-256 `7D48CDBF4BD2898796294E6AB8A9626353375AE6A43EB98A661207079DA9B756`. 차와 폰에 각각 설치하며 같은 기기에 동시 설치할 수 없음.
+- 폰 앱은 같은 Google 계정의 Drive에서 차량이 올린 상태 JSON만 15초 간격으로 읽는다. 영상·사진·목록은 동기화하지 않는다.
+- 차 OAuth 설정: 현재 작업 폴더에 `oauth.properties`가 없고 v1.47 APK의 `TV_OAUTH_CLIENT_ID/SECRET`도 비어 있음. 새 차량 인증과 폰 왕복은 미검증이며, 앱 업데이트 latest manifest는 안정 배포 v1.47을 유지한다.
+- 검증: `lintVehicleDebug`, `lintPhoneDebug`, `assembleVehicleDebug`, `assemblePhoneDebug` 성공. APK 패키지·진입 Activity·서명·권한 정적 확인. `testVehicleDebugUnitTest`는 `DvrStructureTest` `ClassNotFoundException`으로 실행 실패(테스트 클래스 파일은 컴파일됨).
+
 2026-11-12 · v1.47 / versionCode 57
 
 - 깨우기 테스트: 대시캠 화면의 `깨우기 테스트`가 5분 동안 WorkManager 전경 작업으로 DVR `/status`만 15초 간격 확인한다. 파일목록·썸네일·영상 요청이나 DVR 모드 전환은 하지 않는다.

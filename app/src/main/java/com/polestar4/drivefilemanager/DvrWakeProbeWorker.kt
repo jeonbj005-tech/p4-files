@@ -12,6 +12,8 @@ import androidx.work.ForegroundInfo
 import androidx.work.WorkManager
 import androidx.work.Worker
 import androidx.work.WorkerParameters
+import org.json.JSONArray
+import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -23,6 +25,9 @@ class DvrWakeProbeWorker(context:Context,params:WorkerParameters):Worker(context
         const val ACTIVE="active"
         const val STARTED_AT="started_at"
         const val LOG="log"
+        const val SESSION_ID="session_id"
+        private const val DRIVE_FILE_ID="drive_file_id"
+        const val DRIVE_WARNING="drive_warning"
         private const val CHANNEL="p4_dvr_probe"
         private const val NOTIFICATION_ID=4701
         private const val DURATION_MS=5*60*1000L
@@ -36,6 +41,9 @@ class DvrWakeProbeWorker(context:Context,params:WorkerParameters):Worker(context
         }
     }
 
+    private val driveApi by lazy { DriveApi(applicationContext) }
+    private var lastDriveErrorAt=0L
+
     override fun doWork():Result{
         val prefs=applicationContext.getSharedPreferences(PREFS,Context.MODE_PRIVATE)
         val startedAt=prefs.getLong(STARTED_AT,System.currentTimeMillis())
@@ -44,28 +52,53 @@ class DvrWakeProbeWorker(context:Context,params:WorkerParameters):Worker(context
             prefs.edit().putBoolean(ACTIVE,true).apply()
             setForegroundAsync(foregroundInfo()).get()
             appendLog(applicationContext,"백그라운드 DVR 상태 관찰 시작 · 파일 목록/녹화 모드 변경 없음")
+            publishStatus(prefs,"테스트 시작")
             while(!isStopped&&System.currentTimeMillis()<endsAt){
-                val result=try{
+                val status=try{
                     "DVR 응답 · ${DashcamApi.shared.probeRecordingState()}"
                 }catch(error:Exception){
                     "DVR 응답 없음 · ${error.javaClass.simpleName}"
                 }
-                appendLog(applicationContext,result)
+                appendLog(applicationContext,status)
+                publishStatus(prefs,status)
                 val wait=(endsAt-System.currentTimeMillis()).coerceAtMost(INTERVAL_MS)
                 if(wait>0)Thread.sleep(wait)
             }
-            appendLog(applicationContext,if(isStopped)"관찰 중지됨" else "5분 관찰 종료")
+            val finalStatus=if(isStopped)"관찰 중지됨" else "5분 관찰 종료"
+            appendLog(applicationContext,finalStatus)
+            publishStatus(prefs,finalStatus)
             prefs.edit().putBoolean(ACTIVE,false).apply()
             Result.success()
         }catch(_:InterruptedException){
             Thread.currentThread().interrupt()
             appendLog(applicationContext,"관찰 작업 중단")
+            publishStatus(prefs,"관찰 작업 중단")
             prefs.edit().putBoolean(ACTIVE,false).apply()
             Result.success()
         }catch(error:Exception){
             appendLog(applicationContext,"테스트 실행 실패 · ${error.javaClass.simpleName}")
             prefs.edit().putBoolean(ACTIVE,false).apply()
             Result.failure()
+        }
+    }
+
+    private fun publishStatus(prefs:android.content.SharedPreferences,status:String){
+        if(!driveApi.connected){
+            if(!prefs.getBoolean(DRIVE_WARNING,false)){appendLog(applicationContext,"Drive 미연결 · 폰 동기화 대기");prefs.edit().putBoolean(DRIVE_WARNING,true).apply()}
+            return
+        }
+        try{
+            val now=System.currentTimeMillis()
+            val logs=JSONArray()
+            prefs.getString(LOG,"").orEmpty().lines().takeLast(60).forEach(logs::put)
+            val json=JSONObject().put("version",BuildConfig.VERSION_NAME)
+                .put("sessionId",prefs.getString(SESSION_ID,"").orEmpty())
+                .put("startedAt",prefs.getLong(STARTED_AT,now))
+                .put("updatedAt",now).put("status",status).put("logs",logs)
+            val id=driveApi.publishWakeStatus(json.toString(),prefs.getString(DRIVE_FILE_ID,null))
+            prefs.edit().putString(DRIVE_FILE_ID,id).putBoolean(DRIVE_WARNING,false).apply()
+        }catch(error:Exception){
+            if(System.currentTimeMillis()-lastDriveErrorAt>=60_000){appendLog(applicationContext,"Drive 동기화 실패 · ${error.javaClass.simpleName}");lastDriveErrorAt=System.currentTimeMillis()}
         }
     }
 

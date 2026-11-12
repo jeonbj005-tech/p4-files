@@ -22,7 +22,7 @@ class DriveApi(private val ctx: Context) {
     val connected get() = prefs.getInt("scope_version",0)==SCOPE_VERSION &&
         ((prefs.contains("access") && prefs.getLong("expiry",0)>System.currentTimeMillis()+60000) || prefs.contains("refresh"))
     val vehicleMode get() = prefs.getString("auth_mode","")=="VEHICLE_DEVICE_CODE"
-    fun acceptAccessToken(value:String){prefs.edit().putString("access",value).putLong("expiry",System.currentTimeMillis()+50*60*1000).putInt("scope_version",SCOPE_VERSION).putString("granted_scope",DRIVE_SCOPE).putString("auth_mode","PLAY_SERVICES").remove("refresh").commit()}
+    fun acceptAccessToken(value:String,scope:String=DRIVE_SCOPE){prefs.edit().putString("access",value).putLong("expiry",System.currentTimeMillis()+50*60*1000).putInt("scope_version",SCOPE_VERSION).putString("granted_scope",scope).putString("auth_mode","PLAY_SERVICES").remove("refresh").commit()}
     fun acceptVehicleTokens(access:String,refresh:String,expiresIn:Long,scope:String){prefs.edit().putString("access",access).putString("refresh",refresh).putLong("expiry",System.currentTimeMillis()+expiresIn*1000).putInt("scope_version",SCOPE_VERSION).putString("granted_scope",scope).putString("auth_mode","VEHICLE_DEVICE_CODE").commit()}
     private fun connection(url:String, method:String="GET")=(URL(url).openConnection() as HttpURLConnection).apply {
         requestMethod=method;connectTimeout=20000;readTimeout=60000
@@ -77,6 +77,32 @@ class DriveApi(private val ctx: Context) {
         val escaped=query.replace("'","\\'");var q="name contains '$escaped' and trashed=false";if(!mimePrefix.isNullOrBlank())q+=" and mimeType contains '${mimePrefix.replace("'","\\'")}'"
         val c=request("https://www.googleapis.com/drive/v3/files?q=${Uri.encode(q)}&pageSize=100&orderBy=modifiedTime%20desc&fields=files(id,name,mimeType,size,modifiedTime)")
         val j=try{check(response(c))}finally{c.disconnect()};val a=j.optJSONArray("files")?:JSONArray();return (0 until a.length()).map{driveFile(a.getJSONObject(it))}
+    }
+    fun findWakeStatusFile():DriveFile?=latestWakeStatusFile(search(WAKE_STATUS_FILE_NAME))
+    fun readTextFile(id:String):String{
+        val c=request("https://www.googleapis.com/drive/v3/files/${Uri.encode(id)}?alt=media")
+        return try{if(c.responseCode !in 200..299){check(response(c));throw IOException("파일 읽기 실패")};c.inputStream.bufferedReader(Charsets.UTF_8).use{it.readText()}}finally{c.disconnect()}
+    }
+    fun publishWakeStatus(content:String,savedId:String?):String{
+        val existingId=savedId?.takeIf{it.isNotBlank()}?:findWakeStatusFile()?.id
+        if(existingId!=null)try{return writeSmallJson(existingId,content)}catch(e:AuthFailure){if(!e.message.orEmpty().contains("File not found",true))throw e}
+        return writeSmallJson(null,content)
+    }
+    private fun writeSmallJson(id:String?,content:String):String{
+        val bytes=content.toByteArray(Charsets.UTF_8)
+        if(id!=null){
+            val c=request("https://www.googleapis.com/upload/drive/v3/files/${Uri.encode(id)}?uploadType=media&fields=id","PATCH")
+            try{c.doOutput=true;c.setFixedLengthStreamingMode(bytes.size);c.setRequestProperty("Content-Type","application/json; charset=utf-8");c.outputStream.use{it.write(bytes)};return check(response(c)).getString("id")}finally{c.disconnect()}
+        }
+        val boundary="p4files_${System.currentTimeMillis()}"
+        val metadata=JSONObject().put("name",WAKE_STATUS_FILE_NAME).put("mimeType","application/json").put("parents",JSONArray().put("root"))
+        val body=buildString{
+            append("--$boundary\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n")
+            append(metadata.toString()).append("\r\n--$boundary\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n")
+            append(content).append("\r\n--$boundary--")
+        }.toByteArray(Charsets.UTF_8)
+        val c=request("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id","POST")
+        try{c.doOutput=true;c.setFixedLengthStreamingMode(body.size);c.setRequestProperty("Content-Type","multipart/related; boundary=$boundary");c.outputStream.use{it.write(body)};return check(response(c)).getString("id")}finally{c.disconnect()}
     }
     fun getFile(id:String):DriveFile{val c=request("https://www.googleapis.com/drive/v3/files/${Uri.encode(id)}?fields=id,name,mimeType,size,modifiedTime");return try{driveFile(check(response(c)))}finally{c.disconnect()}}
     fun rename(id:String,name:String){patch(id,JSONObject().put("name",name))}

@@ -4,7 +4,7 @@ P4 Files는 저장소 주소를 앱에 고정해 최신 `update.json`을 확인�
 
 ## Release assets
 
-각 버전 Release에 `P4-Files-v<versionName>.apk`와 `update.json`을 올린다. 앱은 아래의 latest manifest URL만 사용하며, APK URL은 버전별 Release 경로와 파일명을 검증한다.
+각 버전 Release에 차량용 `P4-Files-v<versionName>.apk`와 `update.json`을 올린다. 폰 확인용 `P4-Files-phone-v<versionName>.apk`도 함께 배포할 수 있지만, 차량 앱의 `update.json`은 항상 차량용 APK만 가리켜야 한다. 앱은 아래의 latest manifest URL만 사용하며, APK URL은 버전별 Release 경로와 파일명을 검증한다.
 
 ```text
 https://github.com/jeonbj005-tech/p4-files/releases/latest/download/update.json
@@ -36,3 +36,5 @@ https://github.com/jeonbj005-tech/p4-files/releases/latest/download/update.json
 APK는 앱 내부 `files/Updates/`에 보관한다. `ACTION_OPEN_DOCUMENT` 파일 선택기에서 `P4 Files 업데이트 저장소`를 선택해 APK를 고르면, 앱은 공급자 authority·크기·SHA-256을 확인하고 Android 설치기로 읽기 권한을 전달한다. 저장소는 읽기 전용이고, `MANAGE_DOCUMENTS`는 공급자의 시스템 접근 제한으로만 선언한다.
 
 전체 경로, 권한 비교, API 호환성, 미실행 테스트 항목은 [`docs/AUTO_UPDATE_FLOW.md`](docs/AUTO_UPDATE_FLOW.md)에 기록한다.
+
+v1.48 테스트 APK 쌍은 앱별 설치 확인용입니다. 차량 OAuth 설정이 빠져 있으므로 v1.48을 latest manifest로 배포하지 않습니다. `releases/update.json`은 마지막 배포 버전 v1.47을 유지합니다.

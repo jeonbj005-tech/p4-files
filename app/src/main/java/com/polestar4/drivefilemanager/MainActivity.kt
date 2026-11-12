@@ -210,7 +210,7 @@ class MainActivity:Activity(){
         val prefs=getSharedPreferences(DvrWakeProbeWorker.PREFS,MODE_PRIVATE)
         val active=prefs.getBoolean(DvrWakeProbeWorker.ACTIVE,false)
         val log=prefs.getString(DvrWakeProbeWorker.LOG,"").orEmpty().lines().takeLast(20).joinToString("\n")
-        val message="5분 동안 백그라운드에서 DVR 상태 주소만 확인합니다. 파일 목록을 읽거나 녹화 모드를 바꾸지 않습니다.\n\n테스트를 시작하고 앱을 백그라운드에 둔 뒤 폴스타 앱에서 잠금·해제하세요. 돌아와 DVR 응답 기록을 확인하면 됩니다. 이 테스트는 도어 잠금 이벤트나 차량 깨우기 자체가 아니라 DVR 주소 응답 여부를 기록합니다.\n\n최근 기록\n${log.ifBlank{"아직 기록 없음"}}"
+        val message="5분 동안 백그라운드에서 DVR 상태 주소만 확인합니다. 파일 목록·영상은 읽거나 업로드하지 않고 녹화 모드도 바꾸지 않습니다.\n\n차량과 폰 앱을 같은 Google 계정으로 연결하면 상태 기록이 비공개 JSON 파일 하나로 동기화됩니다. 테스트를 시작하고 앱을 백그라운드에 둔 뒤 폴스타 앱에서 잠금·해제하세요. 폰 앱에서 응답 기록을 확인할 수 있습니다. 이 테스트는 도어 잠금 이벤트나 차량 깨우기 자체가 아니라 DVR 주소 응답 여부를 기록합니다.\n\n최근 기록\n${log.ifBlank{"아직 기록 없음"}}"
         AlertDialog.Builder(this).setTitle("백그라운드 차량 연결 테스트").setMessage(message)
             .setNegativeButton("닫기",null)
             .setPositiveButton(if(active)"테스트 종료" else "5분 테스트 시작"){_,_->
@@ -219,7 +219,7 @@ class MainActivity:Activity(){
                     prefs.edit().putBoolean(DvrWakeProbeWorker.ACTIVE,false).apply()
                     DvrWakeProbeWorker.appendLog(this,"사용자가 테스트 종료")
                 }else try{
-                    prefs.edit().putBoolean(DvrWakeProbeWorker.ACTIVE,true).putLong(DvrWakeProbeWorker.STARTED_AT,System.currentTimeMillis()).putString(DvrWakeProbeWorker.LOG,"").apply()
+                    prefs.edit().putBoolean(DvrWakeProbeWorker.ACTIVE,true).putLong(DvrWakeProbeWorker.STARTED_AT,System.currentTimeMillis()).putString(DvrWakeProbeWorker.SESSION_ID,java.util.UUID.randomUUID().toString()).putBoolean(DvrWakeProbeWorker.DRIVE_WARNING,false).putString(DvrWakeProbeWorker.LOG,"").apply()
                     WorkManager.getInstance(this).enqueueUniqueWork(DvrWakeProbeWorker.UNIQUE_WORK,ExistingWorkPolicy.REPLACE,OneTimeWorkRequestBuilder<DvrWakeProbeWorker>().build())
                     Toast.makeText(this,"5분간 백그라운드 DVR 상태 확인을 시작했습니다",Toast.LENGTH_LONG).show()
                 }catch(error:Exception){

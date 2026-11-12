@@ -71,6 +71,13 @@ class DvrStructureTest {
         assertEquals(1000, result.size)
     }
 
+    @Test fun wakeStatusSelectsNewestExactMatch() {
+        val older = DriveApi.DriveFile("old", WAKE_STATUS_FILE_NAME, "application/json", 200, 10)
+        val newest = DriveApi.DriveFile("new", WAKE_STATUS_FILE_NAME, "application/json", 200, 20)
+        val unrelated = DriveApi.DriveFile("other", "P4FilesWakeStatus.json.old", "application/json", 200, 30)
+        assertEquals("new", latestWakeStatusFile(listOf(older, newest, unrelated))?.id)
+    }
+
     @Test fun sessionManagerSerializesAndRecordsExplicitReason() {
         var inFileList = false
         val transitions = mutableListOf<DvrSessionManager.Transition>()
