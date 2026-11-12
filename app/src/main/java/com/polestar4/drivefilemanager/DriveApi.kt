@@ -32,7 +32,19 @@ class DriveApi(private val ctx: Context) {
         val body=(if(code in 200..299)c.inputStream else c.errorStream)?.bufferedReader()?.use{it.readText()}.orEmpty()
         val j=try{JSONObject(body)}catch(e:Exception){JSONObject()}
         if(code !in 200..299 && !((c.url.toString().contains("oauth2.googleapis.com/token") || c.url.toString().contains("www.googleapis.com/oauth2/v4/token")) && j.has("error"))){
-            val error=j.optString("error");val detail=j.optString("error_description",j.optString("message","HTTP $code"));val failure=when{code==401->"TOKEN_ERROR";code==403->"DRIVE_PERMISSION_DENIED";error=="access_denied"->"OAUTH_ACCESS_DENIED";else->"HTTP_ERROR"};AuthDiagnostics.event("DRIVE_API_REQUEST","FAILED",failure,"http=$code");throw AuthFailure(failure,detail)
+            val error=j.optJSONObject("error")
+            val reason=error?.optJSONArray("errors")?.optJSONObject(0)?.optString("reason").orEmpty()
+                .ifBlank{error?.optString("status").orEmpty().ifBlank{j.optString("error")}}
+            val detail=error?.optString("message").orEmpty().ifBlank{j.optString("error_description",j.optString("message","HTTP $code"))}.take(300)
+            val retryable=code==408||code==429||code in 500..599||reason in setOf("rateLimitExceeded","userRateLimitExceeded","backendError","internalError")
+            if(retryable){
+                AuthDiagnostics.event("DRIVE_API_REQUEST","RETRY","HTTP_$code","reason=$reason")
+                throw IOException("Google Drive 일시 오류 (HTTP $code${if(reason.isNotBlank())", $reason" else ""}). 재시도합니다.")
+            }
+            val failure=when{code==401->"TOKEN_ERROR";reason=="storageQuotaExceeded"->"DRIVE_STORAGE_FULL";code==403->"DRIVE_PERMISSION_DENIED";reason=="access_denied"->"OAUTH_ACCESS_DENIED";else->"HTTP_ERROR"}
+            val message=when(failure){"DRIVE_STORAGE_FULL"->"Google Drive 저장공간이 부족합니다. ($detail)";"DRIVE_PERMISSION_DENIED"->"Google Drive 권한을 확인하세요. ($detail)";else->"$detail (HTTP $code)"}
+            AuthDiagnostics.event("DRIVE_API_REQUEST","FAILED",failure,"http=$code reason=$reason")
+            throw AuthFailure(failure,message)
         }
         return j
     }

@@ -1,5 +1,13 @@
 # P4 Files 개발 현황
 
+2026-11-12 · Drive 업로드 재시도·오류 진단 / v1.51
+
+- Drive resumable 업로드는 1MiB 청크로 원본을 스트리밍하며 전체 DVR 파일을 차량 임시 저장소에 복사하지 않는다. 280MB는 크기 제한을 넘는 크기가 아니다.
+- 확인된 결함: Drive 408/429/5xx와 일부 rate-limit 응답을 `AuthFailure`로 분류해 전송 Worker가 재시도 없이 실패 처리했다. v1.51에서는 일시 오류를 재시도 가능한 `IOException`으로 전달한다.
+- Drive 저장공간 부족 응답을 `DRIVE_STORAGE_FULL`로 분류하고 원인을 대기열 오류에 표시한다. 폰 상태 화면도 Drive API의 상세 오류를 표시한다.
+- 차량·폰 APK 빌드와 두 flavor Lint가 통과했다. 실제 Drive 업로드, 저장공간 초과, 차량-폰 JSON 왕복 및 Polestar 실차 동작은 미검증이다.
+- 현재 연결된 기기는 Android API 34 일반 에뮬레이터와 API 33 AAOS 에뮬레이터뿐이다. 로컬 APK는 생성하되, 차량 OAuth 값이 포함될 수 있는 APK를 공개 Release에는 올리지 않는다.
+
 2026-11-12 · 폰 OAuth 연결 / v1.50
 
 - 패키지+서명 중복 등록 오류를 피하려고 폰 flavor의 applicationId를 `com.polestar4.drivefilemanager.phone`으로 분리했다. 차량 applicationId와 서명 키는 유지한다.

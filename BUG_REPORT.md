@@ -1,5 +1,14 @@
 # P4 Files 버그 리포트
 
+## 2026-11-12 — 대용량 DVR Drive 업로드 실패 / 폰 상태 연동 확인 불가
+
+- 사용자 보고: 폰 앱과 차량 앱의 상태 연동이 안 되고, 대시캠 영상도 Google Drive에 업로드되지 않음. 단일 영상 크기는 약 280MB로 보고됨.
+- 크기 조사: 코드상 DVR 영상은 `DVR_UPLOAD` 작업에서 `DashcamApi.openStream()`으로 직접 읽어 Google Drive resumable 업로드에 전달한다. 1MiB 청크를 쓰며 영상 전체를 차량 다운로드 폴더나 캐시에 저장하지 않는다. Google Drive API 문서상 단일 파일 허용 한도는 최대 5,120GB라 280MB 자체는 제한 초과가 아니다 ([Google Drive files.create](https://developers.google.com/workspace/drive/api/reference/rest/v3/files/create)).
+- 확인된 코드 결함: Drive API의 408/429/5xx와 일부 rate-limit 응답이 `AuthFailure`로 분류되어 `P4TransferWorker`에서 즉시 영구 실패 처리됐다.
+- 수정(v1.51): 일시 오류를 재시도 가능한 I/O 오류로 전달하고, 저장공간 부족을 `DRIVE_STORAGE_FULL`로 구분한다. 폰 상태 화면은 Drive API 상세 오류를 표시한다.
+- 연동 흐름: 차량은 `P4FilesWakeStatus.json`을 Google Drive에 기록하고 폰은 같은 Google Cloud 프로젝트의 Android OAuth 클라이언트와 같은 Google 계정으로 파일을 조회한다. 폰 앱은 상태 JSON만 확인하고 DVR 영상은 폰으로 전송하지 않는다.
+- 검증 한계: 빌드와 Lint는 통과했지만, 실제 Google 계정 로그인·280MB 파일 업로드·차량에서 폰으로의 상태 왕복은 실행하지 못했다. 현재 개발 호스트에는 실차/물리 휴대폰이 연결되어 있지 않고, 사용자가 본 전송 큐 오류도 확보되지 않아 실제 실패의 서버 원인(저장공간, 네트워크, DVR 응답, 계정 권한)은 미확정이다.
+
 ## 2026-11-12 — 차량 대시캠과 폰 확인 앱 분리
 
 - 요청: 앱을 차량 대시캠용과 폰에서 상태를 확인하는 용도의 APK 2개로 제공.

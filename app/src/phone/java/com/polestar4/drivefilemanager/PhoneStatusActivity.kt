@@ -154,7 +154,10 @@ class PhoneStatusActivity : Activity() {
             } catch (error: Exception) {
                 runOnUiThread {
                     state.text = if (error is IllegalStateException && error.message?.contains("아직") == true)
-                        "차량 기록을 기다리는 중" else "Drive 확인 실패 · ${(error as? AuthFailure)?.code ?: error.javaClass.simpleName}"
+                        "차량 기록을 기다리는 중" else {
+                        val detail=(error as? AuthFailure)?.let{"${it.code} · ${it.message}"}?:error.javaClass.simpleName
+                        "Drive 확인 실패 · ${detail.take(180)}"
+                    }
                     if (state.text == "차량 기록을 기다리는 중") log.text = "차량에서 Drive에 연결한 뒤 ‘깨우기 테스트’를 시작하세요."
                 }
             } finally {

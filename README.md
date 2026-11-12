@@ -1,15 +1,15 @@
-# P4 Files 1.48
+# P4 Files 1.51
 
 차량 APK는 Polestar 4에서 대시캠과 로컬/USB·Google Drive 파일 관리를 제공하고, 폰 APK는 차량 DVR 상태 확인만 제공합니다.
 
-## 배포 APK
+## APK 산출물
 
-- `releases/P4-Files-v1.48.apk`: 차량용 대시캠·파일 매니저와 5분 DVR 상태 확인 기능
-- `releases/P4-Files-phone-v1.48.apk`: 휴대폰에서 차량 상태 기록만 확인하는 앱
-- 두 APK는 차량과 휴대폰에 각각 설치합니다. package ID가 같아 한 기기에 둘 다 설치하면 서로 교체됩니다.
+- `releases/P4-Files-v1.51.apk`: 차량용 대시캠·파일 매니저와 5분 DVR 상태 확인 기능
+- `releases/P4-Files-phone-v1.51.apk`: 휴대폰에서 차량 상태 기록만 확인하는 앱
+- 두 APK는 차량과 휴대폰에 각각 설치합니다. 앱 ID가 달라 한 기기에도 함께 설치할 수 있습니다.
 - 휴대폰은 차량과 같은 Google 계정으로 Drive의 앱 파일 범위(`drive.file`)에 연결해 상태 JSON만 읽습니다. 영상·사진·파일목록은 전송하지 않습니다.
-- **인증 설정 필요:** 차량용 TV OAuth client 값은 로컬 `oauth.properties`에 설정합니다. 이 저장소에는 현재 파일이 없으므로 Drive 상태 왕복은 아직 검증되지 않았습니다.
-- v1.48은 테스트 산출물입니다. 차량 OAuth 설정과 실차 동기화를 확인하기 전까지 자동 업데이트의 latest manifest는 v1.47을 가리킵니다.
+- **인증:** 차량용 TV OAuth 값은 로컬 `oauth.properties`에서 읽으며 Git에는 포함하지 않습니다. 폰과 차량은 같은 Cloud 프로젝트와 Google 계정으로 연결해야 합니다.
+- v1.51은 로컬 빌드입니다. Google Drive 연결과 차량-폰 상태 왕복은 아직 검증되지 않았고 GitHub 업데이트 배포도 하지 않았습니다.
 
 v1.9에서는 Polestar 시스템 폴더 선택기의 흰 배경/흰 글자 충돌을 줄이기 위해 플랫폼 위젯 테마를 명시적인 Light 테마로 분리했습니다. 앱 본문은 기존 다크 UI를 유지합니다.
 
@@ -58,7 +58,7 @@ v1.13에서는 차량 2분할 저장소와 일반 로컬 폴더에 정렬·새�
 
 - 차량 applicationId: `com.polestar4.drivefilemanager`
 - 폰 applicationId: `com.polestar4.drivefilemanager.phone` (OAuth 패키지 중복을 피하려고 폰 flavor만 분리)
-- versionName: `1.50`, versionCode `60`
+- versionName: `1.51`, versionCode `61`
 - minSdk 26 / targetSdk 35
 - `assembleVehicleDebug` → 차량 APK
 - `assemblePhoneDebug` → 휴대폰 상태 확인 APK
@@ -84,5 +84,5 @@ OAuth 클라이언트가 서로 다른 Cloud 프로젝트에 있거나 APK의 �
 ## 실기기 검증 상태
 
 - 휴대폰에서 Google 전체 Drive 목록 조회 성공 이력 있음
-- v1.50 차량·폰 APK와 Lint가 통과했고, 폰 앱은 Android 14 API 34 에뮬레이터에서 실행을 확인했습니다. Google 로그인과 차량-폰 상태 JSON 왕복은 미검증
+- v1.51 차량·폰 APK 빌드와 양쪽 Lint가 통과했습니다. Google 로그인과 차량-폰 상태 JSON 왕복은 미검증
 - Polestar 4 실차에서 차량 로그인, 백그라운드 상태 업로드, 폰 수신을 함께 확인해야 합니다.
