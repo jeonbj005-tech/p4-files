@@ -1,5 +1,14 @@
 # P4 Files 개발 현황
 
+2026-11-12 · OAuth 준비 / v1.49
+
+- Google Cloud 전용 프로젝트 `P4 Files Drive Relay` (`p4-files-drive-relay`) 생성, Drive API 활성화, 외부 테스트 동의 화면 생성 및 `jeonbj005@gmail.com` 테스트 사용자 등록 완료.
+- 앱 범위로 `drive.file`과 전체 `drive`를 등록. 공개 배포 전에 전체 Drive 범위의 Google 검증 요건을 해결해야 한다.
+- 차량 TV/Limited Input 클라이언트 생성. JSON에서 ID/secret을 로컬 `oauth.properties`로 옮겼으며 `.gitignore` 적용을 확인했다. 비밀값은 Git에 넣지 않는다.
+- Android OAuth 등록은 `com.polestar4.drivefilemanager` + APK SHA-1 `A2:18:83:47:12:EC:30:FE:C4:8E:D5:C4:56:04:8E:FA:E4:9C:2E:3A` 조합이 이미 사용 중이라는 Google 오류로 거부됐다. 현재 계정에서 확인 가능한 기존 프로젝트의 활성/삭제된 클라이언트에는 이 앱 등록이 없었다. 폰 OAuth는 미완료이며 서명 키를 바꿔 우회하지 않는다.
+- versionCode 59 / versionName 1.49로 올려 기존 설치본 위에 설치 가능한 차량 APK를 빌드한다. APK가 공개 배포되면 TV client secret은 추출 가능하다.
+- 실차 차량 로그인·폰 연동·Drive 왕복은 미검증.
+
 2026-11-12 · 실제 Automotive 에뮬레이터 및 폰 화면 점검
 
 - 차량 APK v1.48 / versionCode 58을 Android Automotive API 33 AVD `P4FilesAAOS33`에 설치했다. 최초 알림 권한 요청에서 허용한 뒤 `MainActivity`가 포그라운드에 유지되고 달력/목록 화면이 렌더링됐다. 프로세스 크래시는 관찰되지 않았다.
