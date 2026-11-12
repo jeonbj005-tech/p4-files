@@ -20,10 +20,14 @@ class DriveApi(private val ctx: Context) {
     }
     private val prefs=ctx.getSharedPreferences("drive_v2",0)
     val connected get() = prefs.getInt("scope_version",0)==SCOPE_VERSION &&
-        ((prefs.contains("access") && prefs.getLong("expiry",0)>System.currentTimeMillis()+60000) || prefs.contains("refresh"))
+        if(vehicleMode) !prefs.getString("refresh",null).isNullOrBlank()
+        else prefs.contains("access") && prefs.getLong("expiry",0)>System.currentTimeMillis()+60000
     val vehicleMode get() = prefs.getString("auth_mode","")=="VEHICLE_DEVICE_CODE"
     fun acceptAccessToken(value:String,scope:String=DRIVE_SCOPE){prefs.edit().putString("access",value).putLong("expiry",System.currentTimeMillis()+50*60*1000).putInt("scope_version",SCOPE_VERSION).putString("granted_scope",scope).putString("auth_mode","PLAY_SERVICES").remove("refresh").commit()}
-    fun acceptVehicleTokens(access:String,refresh:String,expiresIn:Long,scope:String){prefs.edit().putString("access",access).putString("refresh",refresh).putLong("expiry",System.currentTimeMillis()+expiresIn*1000).putInt("scope_version",SCOPE_VERSION).putString("granted_scope",scope).putString("auth_mode","VEHICLE_DEVICE_CODE").commit()}
+    fun acceptVehicleTokens(access:String,refresh:String,expiresIn:Long,scope:String){
+        if(access.isBlank()||refresh.isBlank())throw AuthFailure("TOKEN_REFRESH_UNAVAILABLE","Google이 장기 연결 토큰을 주지 않았습니다. Drive를 다시 연결하세요.")
+        prefs.edit().putString("access",access).putString("refresh",refresh).putLong("expiry",System.currentTimeMillis()+expiresIn*1000).putInt("scope_version",SCOPE_VERSION).putString("granted_scope",scope).putString("auth_mode","VEHICLE_DEVICE_CODE").commit()
+    }
     private fun connection(url:String, method:String="GET")=(URL(url).openConnection() as HttpURLConnection).apply {
         requestMethod=method;connectTimeout=20000;readTimeout=60000
     }
@@ -54,18 +58,26 @@ class DriveApi(private val ctx: Context) {
     }
     @Synchronized private fun token():String {
         if(System.currentTimeMillis()>prefs.getLong("expiry",0)-60000){
-            if(vehicleMode && prefs.contains("refresh")) refreshVehicleToken()
+            if(vehicleMode && !prefs.getString("refresh",null).isNullOrBlank()) refreshVehicleToken()
             else throw AuthFailure("TOKEN_MISSING","Google Drive에 다시 로그인하세요.")
         }
         return prefs.getString("access",null)?:throw AuthFailure("TOKEN_MISSING","Google Drive에 로그인하세요.")
     }
+    private fun clearVehicleSession(){prefs.edit().clear().commit()}
     private fun refreshVehicleToken(){
-        val refresh=prefs.getString("refresh",null)?:throw AuthFailure("TOKEN_MISSING","차량 인증을 다시 진행하세요.")
+        val refresh=prefs.getString("refresh",null)?.takeIf{it.isNotBlank()}?:throw AuthFailure("TOKEN_REAUTH_REQUIRED","Google Drive를 다시 연결하세요.")
         val form=linkedMapOf("client_id" to BuildConfig.TV_OAUTH_CLIENT_ID,"client_secret" to BuildConfig.TV_OAUTH_CLIENT_SECRET,"refresh_token" to refresh,"grant_type" to "refresh_token")
         AuthDiagnostics.event("TOKEN_EXCHANGE","START","VEHICLE_REFRESH")
         val j=DeviceCodeAuth.postTokenForm(form)
+        if(j.has("error")){
+            val error=j.optString("error","oauth_error")
+            val failure=DeviceCodeAuth.tokenFailure(error,j.optString("error_description",error))
+            AuthDiagnostics.event("TOKEN_EXCHANGE","FAILED",(failure as? AuthFailure)?.code?:"OAUTH_TEMPORARY_FAILURE","oauthError=$error")
+            if((failure as? AuthFailure)?.code=="TOKEN_REAUTH_REQUIRED")clearVehicleSession()
+            throw failure
+        }
         val access=j.optString("access_token")
-        if(access.isBlank())throw AuthFailure("TOKEN_ERROR",j.optString("error_description",j.optString("error","토큰 갱신 실패")))
+        if(access.isBlank())throw AuthFailure("TOKEN_ERROR","Google 서버가 새 액세스 토큰을 반환하지 않았습니다.")
         prefs.edit().putString("access",access).putLong("expiry",System.currentTimeMillis()+j.optLong("expires_in",3600)*1000).commit()
         AuthDiagnostics.event("TOKEN_EXCHANGE","SUCCESS","VEHICLE_REFRESH")
     }

@@ -1,5 +1,14 @@
 # P4 Files 개발 현황
 
+2026-11-13 · Drive 토큰 복구 / v1.54
+
+- 차량 화면에서 DVR 응답이 `normal`인데 Drive 대용량 업로드가 `TOKEN_ERROR: Bad Request`로 끝나고, 폰 상태가 갱신되지 않는 사례를 확인했다. 코드상 토큰 갱신 응답의 `error` 값을 버려 `error_description=Bad Request`만 보였고, 거부된 refresh token도 `connected`로 취급해 재로그인 경로가 막힐 수 있었다. 실제 Google OAuth error code는 다음 차량 로그 확인 전까지 확정하지 않는다.
+- `invalid_grant`는 차량 Drive 세션을 정리하고 다시 연결하도록 분류한다. 전송 대기열과 resumable 세션은 유지하며, 대기열에 Drive 연결 액션을 제공한다. `temporarily_unavailable` / `server_error`는 영구 실패 대신 WorkManager 재시도 대상으로 둔다. 다른 OAuth 설정 오류도 별도 코드로 표시한다.
+- 추가 단위 테스트는 만료 토큰, 잘못된 클라이언트, 일시적 OAuth 오류 분류를 확인한다. v1.54 / versionCode 64.
+- 검증 완료: 차량·폰 각각 단위 테스트 20개 통과, `lintVehicleDebug` / `lintPhoneDebug`, 두 APK assemble 성공. AAOS API 33 및 폰 API 34 AVD에 설치하고 각 앱 화면 전면 실행을 확인했다. 인증 오류 분류, 업로드 대기열의 재시도 보존은 코드 수준에서 확인했다.
+- 로컬 APK: `releases/P4-Files-v1.54.apk` SHA-256 `EF195E7D2FF0528082CE96557C1199D78C1C9EFF3679DA46359C11B3FCE810BE`; `releases/P4-Files-phone-v1.54.apk` SHA-256 `6947A8263411BB816B5A7796AFC3935B331A21DDAD020E3473CFDF33FE75D667`. APK는 로컬에만 보관한다.
+- 미검증: 사진의 실제 OAuth 오류가 `invalid_grant`인지, 재인증 후 실차의 폰 상태 왕복, 280MB DVR 영상 전체 업로드 완료. 따라서 차량에서 재연결 후 실패 항목을 재시도하고, Drive 동기화와 실제 전송을 확인해야 한다.
+
 2026-11-13 · 차량·폰 UI 리프레시 / v1.53
 
 - 다크 네이비 바탕, 청록-블루 포인트, 얇은 경계선과 눌림 피드백으로 차량·폰 UI를 통일했다. 파일 카드와 목록의 글자 크기, 간격, 터치 영역도 조정했다.

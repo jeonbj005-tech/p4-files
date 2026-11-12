@@ -20,7 +20,7 @@ class DeviceCodeAuth {
             "client_id" to BuildConfig.TV_OAUTH_CLIENT_ID,
             "scope" to "openid email ${DriveApi.VEHICLE_SCOPE}"
         ))
-        if(j.has("error"))throw oauthFailure(j)
+        if(j.has("error"))throw tokenFailure(j.optString("error","oauth_error"),j.optString("error_description",j.optString("error")))
         return Challenge(j.getString("device_code"),j.getString("user_code"),j.optString("verification_url",j.optString("verification_uri","https://www.google.com/device")),j.optLong("expires_in",1800),j.optLong("interval",5))
     }
 
@@ -46,7 +46,7 @@ class DeviceCodeAuth {
                     if(access.isBlank())throw AuthFailure("TOKEN_ERROR","Google 서버가 액세스 토큰을 반환하지 않았습니다.")
                     return Tokens(access,j.optString("refresh_token"),j.optLong("expires_in",3600),j.optString("scope",DriveApi.VEHICLE_SCOPE))
                 }
-                else->throw oauthFailure(j)
+                else->throw tokenFailure(error,j.optString("error_description",error))
             }
         }
         if(isCancelled())throw AuthFailure("OAUTH_CANCELED","차량 인증이 취소되었습니다.")
@@ -69,10 +69,16 @@ class DeviceCodeAuth {
             throw last?:UnknownHostException("Google OAuth 서버 주소를 찾을 수 없습니다.")
         }
         fun postTokenForm(form:Map<String,String>):JSONObject = postWithDnsFallback(listOf("https://oauth2.googleapis.com/token","https://www.googleapis.com/oauth2/v4/token"),form)
-        private fun oauthFailure(j:JSONObject):AuthFailure {
-            val error=j.optString("error","oauth_error")
-            val code=when(error){"invalid_client"->"OAUTH_CLIENT_NOT_FOUND";"access_denied"->"OAUTH_ACCESS_DENIED";"invalid_scope"->"OAUTH_SCOPE_INVALID";else->"TOKEN_ERROR"}
-            return AuthFailure(code,j.optString("error_description",error))
+        internal fun tokenFailure(error:String,description:String=error):Exception {
+            val detail=description.takeIf{it.isNotBlank()&&it !in setOf("Bad Request","Forbidden")}?:error
+            return when(error){
+                "invalid_grant"->AuthFailure("TOKEN_REAUTH_REQUIRED","Google Drive 권한이 만료되었거나 취소되었습니다. Drive를 다시 연결하세요.",reason=error)
+                "invalid_client"->AuthFailure("OAUTH_CLIENT_NOT_FOUND","차량 OAuth 클라이언트를 찾을 수 없습니다. OAuth 설정을 확인하세요.",reason=error)
+                "access_denied"->AuthFailure("OAUTH_ACCESS_DENIED","Google 계정에서 승인이 거부되었습니다.",reason=error)
+                "invalid_scope"->AuthFailure("OAUTH_SCOPE_INVALID","Google OAuth 요청 범위를 확인하세요.",reason=error)
+                "temporarily_unavailable","server_error"->IOException("Google OAuth 서버 일시 오류 ($error). 자동 재시도합니다.")
+                else->AuthFailure("TOKEN_ERROR","Google OAuth 오류: $detail${if(detail!=error)" ($error)" else ""}",reason=error)
+            }
         }
     }
 }
