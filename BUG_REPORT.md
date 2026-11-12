@@ -4,12 +4,12 @@
 
 - 요청: 앱을 차량 대시캠용과 폰에서 상태를 확인하는 용도의 APK 2개로 제공.
 - 구현: `vehicle`/`phone` product flavor 추가. 차량용은 기존 `MainActivity`를 시작하고, 폰용은 `PhoneStatusActivity`에서 Drive 상태 JSON과 최근 진단 기록만 읽는다. 폰 전용 Activity는 phone 소스셋으로 분리했고, 폰 APK 권한은 INTERNET 및 라이브러리 자체 receiver 선언만 남겼다.
-- 전송 범위: 차량은 15초 간격 진단 상태와 최근 60줄 로그를 `P4FilesWakeStatus.json` 한 파일에 쓴다. 대시캠 영상·사진·파일목록은 올리지 않는다. 폰은 같은 Google 계정의 Drive에서 해당 파일을 조회하고, 90초 이상 오래된 상태는 `마지막 응답`으로 표시한다.
+- 전송 범위: 차량은 15초 간격 진단 상태와 최근 60줄 로그를 `P4FilesWakeStatus.json` 한 파일에 쓴다. 대시캠 영상·사진·파일목록은 올리지 않는다. 폰은 같은 Google 계정의 `drive.file` 범위에서 해당 파일만 조회하고, 90초 이상 오래된 상태는 `마지막 응답`으로 표시한다. 차량 TV OAuth 클라이언트와 폰 Android OAuth 클라이언트가 동일 Google Cloud 프로젝트에 있어야 한다.
 - 확인된 차단 조건: 프로젝트 루트에 `oauth.properties`가 없으며 기존 v1.47 APK의 TV OAuth BuildConfig 값도 비어 있다. Google의 TV/제한 입력 OAuth 흐름은 client ID를 필수로 사용하고 token 교환에 client ID/secret 설정이 필요하므로, 새 차량 로그인이 가능한 상태가 아니다. 이 상태에서 차-폰 동기화가 작동한다고 단정할 수 없다.
 - APK 정적 확인: 두 APK 모두 package `com.polestar4.drivefilemanager`, versionCode 58, minSdk 26, targetSdk 35이며 이전 v1.47과 동일한 서명 인증서 사용. 차량은 `MainActivity`, 폰은 `PhoneStatusActivity`가 launcher다. 같은 package ID라 두 파일을 같은 기기에 동시 설치할 수 없다.
 - 빌드/Lint: `lintVehicleDebug`, `lintPhoneDebug`, `assembleVehicleDebug`, `assemblePhoneDebug` 성공. 자동 테스트는 `testVehicleDebugUnitTest`에서 Gradle test worker의 `ClassNotFoundException: DvrStructureTest`로 중단됨. 테스트 컴파일은 성공했으나 메서드 실행은 확인되지 않았다.
-- 차량 APK: `releases/P4-Files-v1.48.apk`, 8,103,835 bytes, SHA-256 `FE29F05A2F88F9957422D4EA27C790977FA89187D590EB1800D30F0309F4A191`.
-- 폰 APK: `releases/P4-Files-phone-v1.48.apk`, 8,305,381 bytes, SHA-256 `EE1F64861DA2A1B274E4F9E4E91D02FB0DA7956220248F8509FAF0727F88D5A9`.
+- 차량 APK: `releases/P4-Files-v1.48.apk`, 8,098,511 bytes, SHA-256 `3230C6D0C233BDC45A760362A6B40A5DA44106ED100B3B6CC6005111A3847167`.
+- 폰 APK: `releases/P4-Files-phone-v1.48.apk`, 8,103,395 bytes, SHA-256 `A656239BB88D5E287F1E89CDA33A618367CCE011478A2C9F00D159CE06B9D4AC`.
 - 배포 상태: 테스트용 빌드 산출물. OAuth 설정 전이므로 latest update manifest는 v1.47 유지; 차량-폰 동기화 및 실차 동작 미검증.
 
 ## 2026-11-12 — 잠금 해제 뒤 차량 DVR 연결 상태 확인

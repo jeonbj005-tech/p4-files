@@ -95,7 +95,7 @@ class PhoneStatusActivity : Activity() {
 
     private fun login() {
         val request = AuthorizationRequest.builder()
-            .setRequestedScopes(listOf(Scope(DriveApi.DRIVE_SCOPE)))
+            .setRequestedScopes(listOf(Scope(DriveApi.VEHICLE_SCOPE)))
             .build()
         auth.authorize(request)
             .addOnSuccessListener { result ->
@@ -114,7 +114,7 @@ class PhoneStatusActivity : Activity() {
             state.text = "Google Drive 권한을 받지 못했습니다."
             return
         }
-        api.acceptAccessToken(token, DriveApi.DRIVE_SCOPE)
+        api.acceptAccessToken(token, DriveApi.VEHICLE_SCOPE)
         refresh()
     }
 

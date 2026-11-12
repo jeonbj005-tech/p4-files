@@ -7,7 +7,7 @@
 - `releases/P4-Files-v1.48.apk`: 차량용 대시캠·파일 매니저와 5분 DVR 상태 확인 기능
 - `releases/P4-Files-phone-v1.48.apk`: 휴대폰에서 차량 상태 기록만 확인하는 앱
 - 두 APK는 차량과 휴대폰에 각각 설치합니다. package ID가 같아 한 기기에 둘 다 설치하면 서로 교체됩니다.
-- 휴대폰은 차량과 같은 Google 계정으로 Drive에 연결하며, 차량이 올리는 소형 상태 JSON만 읽습니다. 영상·사진·파일목록은 전송하지 않습니다.
+- 휴대폰은 차량과 같은 Google 계정으로 Drive의 앱 파일 범위(`drive.file`)에 연결해 상태 JSON만 읽습니다. 영상·사진·파일목록은 전송하지 않습니다.
 - **인증 설정 필요:** 새 차량 로그인을 위해 로컬 `oauth.properties`의 `clientId`와 `clientSecret`이 필요합니다. 현재 작업 폴더에는 이 값이 없으므로 Drive 상태 동기화는 아직 검증되지 않았습니다.
 - v1.48은 테스트 산출물입니다. 차량 OAuth 설정과 실차 동기화를 확인하기 전까지 자동 업데이트의 latest manifest는 v1.47을 가리킵니다.
 
