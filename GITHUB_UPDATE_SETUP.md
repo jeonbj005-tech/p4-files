@@ -13,10 +13,10 @@ https://github.com/jeonbj005-tech/p4-files/releases/latest/download/update.json
 ```json
 {
   "packageName": "com.polestar4.drivefilemanager",
-  "versionCode": 56,
-  "versionName": "1.46",
+  "versionCode": 57,
+  "versionName": "1.47",
   "minimumSdk": 26,
-  "apkUrl": "https://github.com/jeonbj005-tech/p4-files/releases/download/v1.46/P4-Files-v1.46.apk",
+  "apkUrl": "https://github.com/jeonbj005-tech/p4-files/releases/download/v1.47/P4-Files-v1.47.apk",
   "sha256": "APK SHA-256 64자리",
   "size": 12345678,
   "signingCertificateSha256": "서명 인증서 SHA-256 64자리",

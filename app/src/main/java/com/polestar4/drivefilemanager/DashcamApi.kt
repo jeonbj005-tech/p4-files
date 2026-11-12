@@ -68,6 +68,12 @@ class DashcamApi {
         JSONObject(get(STATUS)).optString("recording")=="in-file-list"
     }catch(_:Exception){false}
 
+    /** Read only: used by the background wake probe without changing DVR mode or listing files. */
+    fun probeRecordingState():String{
+        val c=connection(BASE+STATUS).apply{connectTimeout=2_500;readTimeout=2_500}
+        return try{JSONObject(response(c)).optString("recording").ifBlank{"unknown"}}finally{c.disconnect()}
+    }
+
     fun enterFileList():Boolean{
         if(isInFileList())return false
         postMode(ENTER_BODY)

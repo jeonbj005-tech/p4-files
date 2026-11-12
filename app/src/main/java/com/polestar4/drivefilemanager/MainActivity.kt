@@ -22,6 +22,9 @@ import android.widget.*
 import android.text.TextUtils
 import androidx.core.content.FileProvider
 import androidx.documentfile.provider.DocumentFile
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
 import com.google.android.gms.auth.api.identity.AuthorizationRequest
 import com.google.android.gms.auth.api.identity.AuthorizationResult
 import com.google.android.gms.auth.api.identity.Identity
@@ -203,6 +206,28 @@ class MainActivity:Activity(){
             }
         }
     }
+    private fun showDashcamWakeProbe(){
+        val prefs=getSharedPreferences(DvrWakeProbeWorker.PREFS,MODE_PRIVATE)
+        val active=prefs.getBoolean(DvrWakeProbeWorker.ACTIVE,false)
+        val log=prefs.getString(DvrWakeProbeWorker.LOG,"").orEmpty().lines().takeLast(20).joinToString("\n")
+        val message="5분 동안 백그라운드에서 DVR 상태 주소만 확인합니다. 파일 목록을 읽거나 녹화 모드를 바꾸지 않습니다.\n\n테스트를 시작하고 앱을 백그라운드에 둔 뒤 폴스타 앱에서 잠금·해제하세요. 돌아와 DVR 응답 기록을 확인하면 됩니다. 이 테스트는 도어 잠금 이벤트나 차량 깨우기 자체가 아니라 DVR 주소 응답 여부를 기록합니다.\n\n최근 기록\n${log.ifBlank{"아직 기록 없음"}}"
+        AlertDialog.Builder(this).setTitle("백그라운드 차량 연결 테스트").setMessage(message)
+            .setNegativeButton("닫기",null)
+            .setPositiveButton(if(active)"테스트 종료" else "5분 테스트 시작"){_,_->
+                if(active){
+                    WorkManager.getInstance(this).cancelUniqueWork(DvrWakeProbeWorker.UNIQUE_WORK)
+                    prefs.edit().putBoolean(DvrWakeProbeWorker.ACTIVE,false).apply()
+                    DvrWakeProbeWorker.appendLog(this,"사용자가 테스트 종료")
+                }else try{
+                    prefs.edit().putBoolean(DvrWakeProbeWorker.ACTIVE,true).putLong(DvrWakeProbeWorker.STARTED_AT,System.currentTimeMillis()).putString(DvrWakeProbeWorker.LOG,"").apply()
+                    WorkManager.getInstance(this).enqueueUniqueWork(DvrWakeProbeWorker.UNIQUE_WORK,ExistingWorkPolicy.REPLACE,OneTimeWorkRequestBuilder<DvrWakeProbeWorker>().build())
+                    Toast.makeText(this,"5분간 백그라운드 DVR 상태 확인을 시작했습니다",Toast.LENGTH_LONG).show()
+                }catch(error:Exception){
+                    prefs.edit().putBoolean(DvrWakeProbeWorker.ACTIVE,false).apply()
+                    AlertDialog.Builder(this).setTitle("테스트 시작 실패").setMessage(error.javaClass.simpleName).setPositiveButton("확인",null).show()
+                }
+            }.show()
+    }
     private fun startDashcamStartupLoad(){
         if(dashcamStartupMonthAttempted){state.text="저장된 기록 ${dashcamItems.size}개 · 최신 기록은 새로고침";return}
         dashcamStartupMonthAttempted=true
@@ -263,6 +288,7 @@ class MainActivity:Activity(){
         caption("")
         actions.removeAllViews()
         actions.addView(button("새로고침"){showDashcam(true)},LinearLayout.LayoutParams(-2,dp(if(carLayout())56 else 42)).apply{rightMargin=dp(8)})
+        actions.addView(button("깨우기 테스트"){showDashcamWakeProbe()},LinearLayout.LayoutParams(-2,dp(if(carLayout())56 else 42)).apply{rightMargin=dp(8)})
         actions.addView(button("캐시 초기화"){confirmDashcamCacheReset()},LinearLayout.LayoutParams(-2,dp(if(carLayout())56 else 42)).apply{rightMargin=dp(8)})
         actions.addView(button("업데이트"){checkAppUpdate()},LinearLayout.LayoutParams(-2,dp(if(carLayout())56 else 42)).apply{rightMargin=dp(8)})
         actions.addView(button("썸네일 새로고침"){requestDashcamThumbnails(true)},LinearLayout.LayoutParams(-2,dp(if(carLayout())56 else 42)))

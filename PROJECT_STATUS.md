@@ -1,5 +1,13 @@
 # P4 Files 개발 현황
 
+2026-11-12 · v1.47 / versionCode 57
+
+- 깨우기 테스트: 대시캠 화면의 `깨우기 테스트`가 5분 동안 WorkManager 전경 작업으로 DVR `/status`만 15초 간격 확인한다. 파일목록·썸네일·영상 요청이나 DVR 모드 전환은 하지 않는다.
+- 기록: 최근 상태 응답/오류와 시각을 앱 내부에 보관하고, 지속 알림에서 중지할 수 있다. 도어 잠금 이벤트를 읽거나 차를 깨우는 기능은 아니다.
+- 검증: `lintDebug`, `assembleDebug` 성공. v1.47 APK package/version `com.polestar4.drivefilemanager` / 57 / 1.47, 기존 v1.46과 서명 인증서 일치.
+- APK: `releases/P4-Files-v1.47.apk`, 8,288,503 bytes, SHA-256 `23EEF9BB3052DEC4C538C0DB94F2E7BE5DA74559511FFEF796A9EEFE8BE0F417`. 서명 인증서 SHA-256 `7D48CDBF4BD2898796294E6AB8A9626353375AE6A43EB98A661207079DA9B756`.
+- 미검증: Polestar 앱 잠금·해제 뒤 DVR 상태 응답, 차량에서 5분 전경 작업 유지 여부.
+
 2026-11-12 · v1.46 / versionCode 56
 
 - 업데이트 저장소: 검증한 APK를 앱 내부 `files/Updates/`에 저장하고 읽기 전용 `DocumentsProvider`를 `P4 Files 업데이트 저장소`로 시스템 문서 선택기에 공개.

@@ -1,11 +1,11 @@
 {
   "packageName": "com.polestar4.drivefilemanager",
-  "versionCode": 56,
-  "versionName": "1.46",
+  "versionCode": 57,
+  "versionName": "1.47",
   "minimumSdk": 26,
-  "apkUrl": "https://github.com/jeonbj005-tech/p4-files/releases/download/v1.46/P4-Files-v1.46.apk",
-  "sha256": "78c15f485dc54c9d82fd201ac69805153a1ec84c8cfdab5923da2c610ad2a1f2",
-  "size": 6420506,
+  "apkUrl": "https://github.com/jeonbj005-tech/p4-files/releases/download/v1.47/P4-Files-v1.47.apk",
+  "sha256": "23eef9bb3052dec4c538c0db94f2e7be5da74559511ffef796a9eefe8be0f417",
+  "size": 8288503,
   "signingCertificateSha256": "7d48cdbf4bd2898796294e6ab8a9626353375ae6a43eb98a661207079da9b756",
-  "notes": "앱 전용 업데이트 저장소와 Android 시스템 파일 선택기 설치 흐름 추가"
+  "notes": "잠금 해제 뒤 DVR 응답을 확인하는 5분 백그라운드 진단 추가"
 }
