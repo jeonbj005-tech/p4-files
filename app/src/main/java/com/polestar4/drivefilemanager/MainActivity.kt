@@ -97,24 +97,32 @@ class MainActivity:Activity(){
     private var firstDashcamIntro=true
     private var dashcamEntranceAnimated=false
     private val dashcamMonth=java.util.Calendar.getInstance().apply{set(java.util.Calendar.DAY_OF_MONTH,1)}
-    private val bg=Color.rgb(10,12,15)
-    private val surface=Color.rgb(22,26,31)
-    private val surfaceRaised=Color.rgb(30,35,42)
-    private val muted=Color.rgb(151,162,174)
-    private val accent=Color.rgb(92,164,255)
+    private val bg=Color.rgb(8,12,20)
+    private val surface=Color.rgb(17,24,35)
+    private val surfaceRaised=Color.rgb(26,36,50)
+    private val muted=Color.rgb(164,178,196)
+    private val accent=Color.rgb(91,194,255)
     private fun dp(x:Int)=(x*resources.displayMetrics.density).toInt()
     private fun text(s:String,size:Float=16f,color:Int=Color.rgb(244,246,248))=TextView(this).apply{text=s;textSize=size;setTextColor(color);fontFeatureSettings="kern"}
-    private fun panel(color:Int)=GradientDrawable().apply{setColor(color);cornerRadius=dp(16).toFloat()}
+    private fun panel(color:Int)=GradientDrawable().apply{setColor(color);cornerRadius=dp(18).toFloat();setStroke(dp(1),Color.argb(24,190,215,242))}
+    private fun accentPanel(radius:Int=18)=GradientDrawable(GradientDrawable.Orientation.TL_BR,intArrayOf(Color.rgb(27,126,208),Color.rgb(28,183,214))).apply{cornerRadius=dp(radius).toFloat()}
     private fun caption(value:String){subtitle.text=value;subtitle.visibility=if(value.isBlank())View.GONE else View.VISIBLE}
     private fun carLayout()=packageManager.hasSystemFeature("android.hardware.type.automotive")||(resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE&&resources.configuration.screenWidthDp>=600)
-    private fun button(s:String,click:()->Unit)=Button(this).apply{text=s;isAllCaps=false;textSize=if(carLayout())18f else 13f;setTextColor(Color.rgb(226,237,251));setPadding(dp(if(carLayout())20 else 13),0,dp(if(carLayout())20 else 13),0);minHeight=dp(if(carLayout())54 else 42);minimumWidth=0;minWidth=0;background=panel(surfaceRaised);setOnClickListener{if(!busy)click()}}
+    private fun button(s:String,primary:Boolean=false,click:()->Unit)=Button(this).apply{
+        text=s;isAllCaps=false;textSize=if(carLayout())17f else 14f;setTypeface(null,Typeface.BOLD);letterSpacing=.01f
+        setTextColor(Color.WHITE);setPadding(dp(if(carLayout())18 else 14),0,dp(if(carLayout())18 else 14),0)
+        minHeight=dp(if(carLayout())54 else 46);minimumWidth=0;minWidth=0
+        background=if(primary)accentPanel(16) else panel(surfaceRaised)
+        if(Build.VERSION.SDK_INT>=21)foreground=android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(Color.argb(42,255,255,255)),null,panel(Color.WHITE))
+        setOnClickListener{if(!busy)click()}
+    }
     override fun onCreate(b:Bundle?){super.onCreate(b);if(api.connected&&!api.vehicleMode)api.logout();window.statusBarColor=bg;window.navigationBarColor=bg;layout();restoreSavedStorage();if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),90);showDashcam(false);handler.postDelayed({checkAutomaticAppUpdate()},5_000)}
     private fun layout(){
-        val root=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(16),dp(10),dp(16),dp(8));setBackgroundColor(bg)}
-        root.setOnApplyWindowInsetsListener { view,insets -> view.setPadding(dp(16)+insets.systemWindowInsetLeft,dp(10)+insets.systemWindowInsetTop,dp(16)+insets.systemWindowInsetRight,dp(8)+insets.systemWindowInsetBottom);insets }
+        val root=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(18),dp(10),dp(18),dp(10));background=GradientDrawable(GradientDrawable.Orientation.TL_BR,intArrayOf(Color.rgb(12,20,33),bg,Color.rgb(9,15,25)))}
+        root.setOnApplyWindowInsetsListener { view,insets -> view.setPadding(dp(18)+insets.systemWindowInsetLeft,dp(10)+insets.systemWindowInsetTop,dp(18)+insets.systemWindowInsetRight,dp(10)+insets.systemWindowInsetBottom);insets }
         val header=LinearLayout(this).apply{gravity=Gravity.CENTER_VERTICAL}
         header.addView(button("←"){back()},LinearLayout.LayoutParams(dp(48),dp(44)).apply{rightMargin=dp(10)})
-        title=text("P4 FILES",if(carLayout())34f else 24f).apply{setTypeface(null,Typeface.BOLD);letterSpacing=.03f;gravity=Gravity.CENTER_VERTICAL};header.addView(title,LinearLayout.LayoutParams(0,dp(if(carLayout())60 else 46),1f))
+        title=text("P4 FILES",if(carLayout())34f else 25f).apply{setTypeface(null,Typeface.BOLD);letterSpacing=.04f;gravity=Gravity.CENTER_VERTICAL};header.addView(title,LinearLayout.LayoutParams(0,dp(if(carLayout())60 else 48),1f))
         header.addView(button("HOME"){home()});root.addView(header)
         subtitle=text("",if(carLayout())17f else 12f,muted);subtitle.setPadding(dp(2),dp(3),0,dp(if(carLayout())14 else 10));root.addView(subtitle)
         actions=LinearLayout(this).apply{dividerDrawable=android.graphics.drawable.ColorDrawable(Color.TRANSPARENT);showDividers=LinearLayout.SHOW_DIVIDER_MIDDLE;dividerPadding=dp(4)};root.addView(HorizontalScrollView(this).apply{addView(actions);isHorizontalScrollBarEnabled=false})
@@ -125,24 +133,24 @@ class MainActivity:Activity(){
         setContentView(root)
     }
     private fun card(icon:String,name:String,detail:String,click:()->Unit){
-        val row=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(dp(18),dp(18),dp(18),dp(18));background=panel(surface);setOnClickListener{if(!busy)click()}}
-        row.addView(text(icon,23f,accent).apply{gravity=Gravity.CENTER;background=panel(Color.rgb(28,47,68))},LinearLayout.LayoutParams(dp(48),dp(48)).apply{rightMargin=dp(16)})
-        val labels=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;addView(text(name,18f).apply{setTypeface(null,Typeface.BOLD)});addView(text(detail,13f,muted).apply{setPadding(0,dp(6),0,0)})}
+        val row=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(dp(20),dp(18),dp(20),dp(18));background=panel(surface);setOnClickListener{if(!busy)click()}}
+        row.addView(text(icon,24f,accent).apply{gravity=Gravity.CENTER;background=accentPanel(16)},LinearLayout.LayoutParams(dp(52),dp(52)).apply{rightMargin=dp(16)})
+        val labels=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;addView(text(name,if(carLayout())20f else 18f).apply{setTypeface(null,Typeface.BOLD)});addView(text(detail,if(carLayout())15f else 13f,muted).apply{setPadding(0,dp(6),0,0)})}
         row.addView(labels,LinearLayout.LayoutParams(0,-2,1f));row.addView(text("›",26f,muted))
         body.addView(row,LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(10)})
     }
     private fun entryRow(name:String,badge:String,meta:String,folder:Boolean,secondary:(()->Unit)?=null,click:()->Unit){
-        val row=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(dp(12),dp(9),dp(12),dp(9));background=panel(surface);setOnClickListener{if(!busy)click()}}
-        val badgeView=text(if(folder)"DIR" else badge.take(5),10f,if(folder)Color.rgb(210,237,255) else Color.rgb(232,238,245)).apply{gravity=Gravity.CENTER;setTypeface(null,Typeface.BOLD);letterSpacing=.08f;background=panel(if(folder)Color.rgb(23,86,130) else Color.rgb(58,64,72))}
-        row.addView(badgeView,LinearLayout.LayoutParams(dp(58),dp(38)).apply{rightMargin=dp(12)})
+        val row=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(dp(14),dp(9),dp(14),dp(9));background=panel(surface);setOnClickListener{if(!busy)click()}}
+        val badgeView=text(if(folder)"DIR" else badge.take(5),if(carLayout())12f else 10f,if(folder)Color.rgb(214,243,255) else Color.rgb(232,238,245)).apply{gravity=Gravity.CENTER;setTypeface(null,Typeface.BOLD);letterSpacing=.08f;background=panel(if(folder)Color.rgb(22,103,153) else Color.rgb(47,61,78))}
+        row.addView(badgeView,LinearLayout.LayoutParams(dp(if(carLayout())66 else 58),dp(if(carLayout())44 else 38)).apply{rightMargin=dp(14)})
         val labels=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL}
-        labels.addView(text((if(folder)"▰  " else "")+name,16f).apply{setTypeface(null,Typeface.BOLD);maxLines=1;ellipsize=TextUtils.TruncateAt.END})
-        labels.addView(text((if(folder)"폴더  ·  " else "파일  ·  ")+meta,12f,muted).apply{setPadding(0,dp(3),0,0);maxLines=1;ellipsize=TextUtils.TruncateAt.END})
-        row.addView(labels,LinearLayout.LayoutParams(0,-2,1f));val more=text(if(secondary==null)"›" else "⋮",22f,Color.rgb(122,135,149)).apply{gravity=Gravity.CENTER;setOnClickListener{if(!busy)(secondary?:click).invoke()}};row.addView(more,LinearLayout.LayoutParams(dp(32),dp(40)))
+        labels.addView(text((if(folder)"▰  " else "")+name,if(carLayout())18f else 16f).apply{setTypeface(null,Typeface.BOLD);maxLines=1;ellipsize=TextUtils.TruncateAt.END})
+        labels.addView(text((if(folder)"폴더  ·  " else "파일  ·  ")+meta,if(carLayout())14f else 12f,muted).apply{setPadding(0,dp(3),0,0);maxLines=1;ellipsize=TextUtils.TruncateAt.END})
+        row.addView(labels,LinearLayout.LayoutParams(0,-2,1f));val more=text(if(secondary==null)"›" else "⋮",24f,Color.rgb(144,165,188)).apply{gravity=Gravity.CENTER;setOnClickListener{if(!busy)(secondary?:click).invoke()}};row.addView(more,LinearLayout.LayoutParams(dp(38),dp(44)))
         if(secondary!=null)row.setOnLongClickListener{if(!busy)secondary();true}
-        body.addView(row,LinearLayout.LayoutParams(-1,dp(66)).apply{bottomMargin=dp(6)})
+        body.addView(row,LinearLayout.LayoutParams(-1,dp(if(carLayout())76 else 66)).apply{bottomMargin=dp(7)})
     }
-    private fun section(s:String){body.addView(text(s.uppercase(),11f,muted).apply{letterSpacing=.1f;setTypeface(null,Typeface.BOLD);setPadding(dp(4),dp(15),0,dp(9))})}
+    private fun section(s:String){body.addView(text(s.uppercase(),if(carLayout())14f else 11f,muted).apply{letterSpacing=.12f;setTypeface(null,Typeface.BOLD);setPadding(dp(4),dp(16),0,dp(10))})}
     private fun home(){mode="home";selectionMode=false;selectedDrive.clear();selectedLocal.clear();title.text="P4 FILES";caption("차량과 클라우드 파일을 한곳에서");body.removeAllViews();actions.removeAllViews()
         actions.addView(button("대시캠"){showDashcam()},LinearLayout.LayoutParams(-2,dp(42)).apply{rightMargin=dp(6)});actions.addView(button("전송 대기열"){showQueue()},LinearLayout.LayoutParams(-2,dp(42)).apply{rightMargin=dp(6)});actions.addView(button("즐겨찾기"){showFavorites()},LinearLayout.LayoutParams(-2,dp(42)).apply{rightMargin=dp(6)});actions.addView(button("최근 항목"){showRecent()},LinearLayout.LayoutParams(-2,dp(42)).apply{rightMargin=dp(6)});actions.addView(button("인증 진단"){showDiagnostics()},LinearLayout.LayoutParams(-2,dp(42)))
         if(resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE&&resources.configuration.screenWidthDp>=700){showDualPane();return}
@@ -278,16 +286,16 @@ class MainActivity:Activity(){
         }
         caption("")
         actions.removeAllViews()
-        actions.addView(button("새로고침"){showDashcam(true)},LinearLayout.LayoutParams(-2,dp(if(carLayout())56 else 42)).apply{rightMargin=dp(8)})
-        actions.addView(button("깨우기 테스트"){showDashcamWakeProbe()},LinearLayout.LayoutParams(-2,dp(if(carLayout())56 else 42)).apply{rightMargin=dp(8)})
-        actions.addView(button("캐시 초기화"){confirmDashcamCacheReset()},LinearLayout.LayoutParams(-2,dp(if(carLayout())56 else 42)).apply{rightMargin=dp(8)})
-        actions.addView(button("업데이트"){checkAppUpdate()},LinearLayout.LayoutParams(-2,dp(if(carLayout())56 else 42)).apply{rightMargin=dp(8)})
-        actions.addView(button("썸네일 새로고침"){requestDashcamThumbnails(true)},LinearLayout.LayoutParams(-2,dp(if(carLayout())56 else 42)))
+        actions.addView(button("새로고침",primary=true){showDashcam(true)},LinearLayout.LayoutParams(-2,dp(if(carLayout())56 else 48)).apply{rightMargin=dp(8)})
+        actions.addView(button("깨우기 테스트"){showDashcamWakeProbe()},LinearLayout.LayoutParams(-2,dp(if(carLayout())56 else 48)).apply{rightMargin=dp(8)})
+        actions.addView(button("캐시 초기화"){confirmDashcamCacheReset()},LinearLayout.LayoutParams(-2,dp(if(carLayout())56 else 48)).apply{rightMargin=dp(8)})
+        actions.addView(button("업데이트"){checkAppUpdate()},LinearLayout.LayoutParams(-2,dp(if(carLayout())56 else 48)).apply{rightMargin=dp(8)})
+        actions.addView(button("썸네일 새로고침"){requestDashcamThumbnails(true)},LinearLayout.LayoutParams(-2,dp(if(carLayout())56 else 48)))
         val landscape=resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE
         if(firstDashcamIntro&&!landscape)body.addView(dashcamIntro(),LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(10)})
         val holder=LinearLayout(this).apply{orientation=if(landscape)LinearLayout.HORIZONTAL else LinearLayout.VERTICAL}
-        val calendarPane=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(8),dp(12),dp(18),dp(10))}
-        val recordsPane=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(18),dp(12),dp(8),dp(10))}
+        val calendarPane=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(8),dp(8),dp(18),dp(6));background=panel(Color.argb(35,29,43,60))}
+        val recordsPane=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(18),dp(8),dp(8),dp(6))}
         renderDashcamMonth(calendarPane)
         renderDashcamRecords(recordsPane,landscape)
         if(holder.orientation==LinearLayout.HORIZONTAL){holder.addView(calendarPane,LinearLayout.LayoutParams(0,-1,1.18f));holder.addView(recordsPane,LinearLayout.LayoutParams(0,-1,.82f))}
@@ -337,12 +345,12 @@ class MainActivity:Activity(){
     }
     private fun renderDashcamMonth(host:LinearLayout){
         val header=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL}
-        header.addView(button("◀"){dashcamMonth.add(java.util.Calendar.MONTH,-1);dashcamVisibleLimit=50;selectCachedDashcamDay();renderDashcam(dashcamItems);state.text="저장된 ${dashcamMonth.get(java.util.Calendar.MONTH)+1}월 기록 표시 · 최신화 중";loadDashcamMonth(showLoading=false)},LinearLayout.LayoutParams(dp(if(carLayout())78 else 58),dp(if(carLayout())58 else 42)))
-        header.addView(text(String.format(Locale.KOREA,"%d년 %d월",dashcamMonth.get(java.util.Calendar.YEAR),dashcamMonth.get(java.util.Calendar.MONTH)+1),dvrText(24f)).apply{gravity=Gravity.CENTER;setTypeface(null,Typeface.BOLD)},LinearLayout.LayoutParams(0,dp(if(carLayout())70 else 56),1f))
-        header.addView(button("▶"){dashcamMonth.add(java.util.Calendar.MONTH,1);dashcamVisibleLimit=50;selectCachedDashcamDay();renderDashcam(dashcamItems);state.text="저장된 ${dashcamMonth.get(java.util.Calendar.MONTH)+1}월 기록 표시 · 최신화 중";loadDashcamMonth(showLoading=false)},LinearLayout.LayoutParams(dp(if(carLayout())78 else 58),dp(if(carLayout())58 else 42)))
+        header.addView(button("◀"){dashcamMonth.add(java.util.Calendar.MONTH,-1);dashcamVisibleLimit=50;selectCachedDashcamDay();renderDashcam(dashcamItems);state.text="저장된 ${dashcamMonth.get(java.util.Calendar.MONTH)+1}월 기록 표시 · 최신화 중";loadDashcamMonth(showLoading=false)},LinearLayout.LayoutParams(dp(if(carLayout())68 else 54),dp(if(carLayout())52 else 42)))
+        header.addView(text(String.format(Locale.KOREA,"%d년 %d월",dashcamMonth.get(java.util.Calendar.YEAR),dashcamMonth.get(java.util.Calendar.MONTH)+1),dvrText(22f)).apply{gravity=Gravity.CENTER;setTypeface(null,Typeface.BOLD);letterSpacing=.015f},LinearLayout.LayoutParams(0,dp(if(carLayout())56 else 48),1f))
+        header.addView(button("▶"){dashcamMonth.add(java.util.Calendar.MONTH,1);dashcamVisibleLimit=50;selectCachedDashcamDay();renderDashcam(dashcamItems);state.text="저장된 ${dashcamMonth.get(java.util.Calendar.MONTH)+1}월 기록 표시 · 최신화 중";loadDashcamMonth(showLoading=false)},LinearLayout.LayoutParams(dp(if(carLayout())68 else 54),dp(if(carLayout())52 else 42)))
         host.addView(header)
         val weekdays=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL}
-        arrayOf("일","월","화","수","목","금","토").forEachIndexed{i,label->weekdays.addView(text(label,dvrText(14f),when(i){0->Color.rgb(255,120,120);6->Color.rgb(110,175,255);else->muted}).apply{gravity=Gravity.CENTER;setTypeface(null,Typeface.BOLD)},LinearLayout.LayoutParams(0,dp(if(carLayout())48 else 38),1f))}
+        arrayOf("일","월","화","수","목","금","토").forEachIndexed{i,label->weekdays.addView(text(label,dvrText(12f),when(i){0->Color.rgb(255,137,145);6->accent;else->muted}).apply{gravity=Gravity.CENTER;setTypeface(null,Typeface.BOLD)},LinearLayout.LayoutParams(0,dp(if(carLayout())30 else 32),1f))}
         host.addView(weekdays)
         val year=dashcamMonth.get(java.util.Calendar.YEAR);val month=dashcamMonth.get(java.util.Calendar.MONTH)
         val first=java.util.Calendar.getInstance().apply{set(year,month,1,0,0,0)}
@@ -355,8 +363,8 @@ class MainActivity:Activity(){
                 if(day in 1..days){
                     val key=String.format(Locale.KOREA,"%04d-%02d-%02d",year,month+1,day)
                     val records=dashcamItems.filter{dashcamDayKey(it.second)==key}
-                    week.addView(dashcamDayCell(day,key,records),LinearLayout.LayoutParams(0,dp(if(carLayout())130 else 98),1f).apply{setMargins(dp(4),dp(4),dp(4),dp(4))})
-                }else week.addView(View(this),LinearLayout.LayoutParams(0,dp(if(carLayout())130 else 98),1f))
+                    week.addView(dashcamDayCell(day,key,records),LinearLayout.LayoutParams(0,dp(if(carLayout())64 else 78),1f).apply{setMargins(dp(3),dp(3),dp(3),dp(3))})
+                }else week.addView(View(this),LinearLayout.LayoutParams(0,dp(if(carLayout())64 else 78),1f))
                 cell++
             }
             host.addView(week)
@@ -376,10 +384,19 @@ class MainActivity:Activity(){
         val selected=key==dashcamDay
         val counts=records.groupingBy{dashcamGroup(it.first)}.eachCount()
         return LinearLayout(this).apply{
-            orientation=LinearLayout.VERTICAL;gravity=Gravity.TOP or Gravity.CENTER_HORIZONTAL;setPadding(dp(2),dp(4),dp(2),dp(2));background=panel(if(selected)Color.rgb(25,91,145) else if(records.isNotEmpty())Color.rgb(25,31,38) else Color.TRANSPARENT)
-            addView(text(day.toString(),dvrText(15f),if(selected)Color.WHITE else if(records.isNotEmpty())Color.rgb(235,242,250) else muted).apply{gravity=Gravity.CENTER;setTypeface(null,Typeface.BOLD)})
-            if(records.isNotEmpty())addView(text(listOf("상시","긴급","서라운드","사진").mapNotNull{kind->counts[kind]?.takeIf{it>0}?.let{"$kind $it"}}.joinToString("\n"),dvrText(9f),if(selected)Color.WHITE else muted).apply{gravity=Gravity.CENTER;maxLines=4})
-            isClickable=true;setOnClickListener{dashcamDay=key;dashcamVisibleLimit=50;val present=listOf("상시","긴급","서라운드","사진").firstOrNull{counts.getOrDefault(it,0)>0};if(counts.getOrDefault(dashcamKind,0)==0&&present!=null)dashcamKind=present;renderDashcam(dashcamItems)}
+            orientation=LinearLayout.VERTICAL;gravity=Gravity.TOP or Gravity.CENTER_HORIZONTAL;setPadding(dp(2),dp(5),dp(2),dp(3));background=if(selected)accentPanel(14) else panel(if(records.isNotEmpty())Color.rgb(24,34,48) else Color.TRANSPARENT)
+            addView(text(day.toString(),dvrText(14f),if(selected)Color.WHITE else if(records.isNotEmpty())Color.rgb(235,242,250) else muted).apply{gravity=Gravity.CENTER;setTypeface(null,Typeface.BOLD)})
+            if(records.isNotEmpty()){
+                val indicators=LinearLayout(this@MainActivity).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER;setPadding(0,dp(3),0,0)}
+                listOf("상시" to Color.rgb(84,205,255),"긴급" to Color.rgb(255,118,112),"서라운드" to Color.rgb(174,139,255),"사진" to Color.rgb(112,220,164)).forEach{(kind,color)->if(counts.getOrDefault(kind,0)>0){
+                    val dot=View(this@MainActivity).apply{background=GradientDrawable().apply{shape=GradientDrawable.OVAL;setColor(if(selected)Color.WHITE else color)}}
+                    indicators.addView(dot,LinearLayout.LayoutParams(dp(6),dp(6)).apply{leftMargin=dp(2);rightMargin=dp(2)})
+                }}
+                addView(indicators)
+                addView(text("${records.size}개",if(carLayout())10f else 9f,if(selected)Color.WHITE else muted).apply{gravity=Gravity.CENTER;setPadding(0,dp(2),0,0)})
+            }
+            contentDescription="$key${if(records.isNotEmpty())", 녹화 ${records.size}개" else ", 녹화 없음"}"
+            isClickable=true;isSelected=selected;setOnClickListener{dashcamDay=key;dashcamVisibleLimit=50;val present=listOf("상시","긴급","서라운드","사진").firstOrNull{counts.getOrDefault(it,0)>0};if(counts.getOrDefault(dashcamKind,0)==0&&present!=null)dashcamKind=present;renderDashcam(dashcamItems)}
         }
     }
     private fun renderDashcamRecords(host:LinearLayout,independentScroll:Boolean){
@@ -387,10 +404,11 @@ class MainActivity:Activity(){
         if(dashcamLoading){host.addView(text("내역 불러오는 중…",dvrText(18f),muted).apply{setPadding(dp(8),dp(24),0,0)});return}
         if(day==null){host.addView(text("달력에서 날짜를 선택하세요.",dvrText(18f),muted));return}
         val dayItems=dashcamItems.filter{dashcamDayKey(it.second)==day}
-        host.addView(text("$day · ${dayItems.size}개",dvrText(22f)).apply{setTypeface(null,Typeface.BOLD);setPadding(dp(2),0,0,dp(10))})
+        host.addView(text("$day",dvrText(21f)).apply{setTypeface(null,Typeface.BOLD);setPadding(dp(2),0,0,dp(1))})
+        host.addView(text("${dayItems.size}개 녹화",dvrText(11f),muted).apply{setPadding(dp(3),0,0,dp(8))})
         val counts=dayItems.groupingBy{dashcamGroup(it.first)}.eachCount()
         val tabs=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL}
-        listOf("상시","긴급","서라운드","사진").forEach{kind->tabs.addView(button("${if(kind==dashcamKind)"● " else ""}$kind (${counts.getOrDefault(kind,0)})"){dashcamKind=kind;dashcamVisibleLimit=50;renderDashcam(dashcamItems)},LinearLayout.LayoutParams(0,dp(42),1f).apply{rightMargin=dp(3)})}
+        listOf("상시","긴급","서라운드","사진").forEach{kind->tabs.addView(button("${if(kind==dashcamKind)"● " else ""}$kind (${counts.getOrDefault(kind,0)})",primary=kind==dashcamKind){dashcamKind=kind;dashcamVisibleLimit=50;renderDashcam(dashcamItems)},LinearLayout.LayoutParams(0,dp(48),1f).apply{rightMargin=dp(4)})}
         host.addView(tabs,LinearLayout.LayoutParams(-1,dp(46)).apply{bottomMargin=dp(8)})
         val allVisible=dayItems.filter{dashcamGroup(it.first)==dashcamKind}.sortedByDescending{dashcamTime(it.second.dateTime,it.second.name)}
         val visible=allVisible.take(dashcamVisibleLimit)
@@ -410,15 +428,15 @@ class MainActivity:Activity(){
         }else host.addView(rows)
     }
     private fun dashcamRecordRow(host:LinearLayout,category:DashcamApi.Category,media:DashcamApi.Media){
-        val row=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(dp(8),dp(8),dp(8),dp(8));background=panel(surface);setOnClickListener{if(!busy)dashcamPreview(media)}}
-        val image=ImageView(this).apply{scaleType=ImageView.ScaleType.CENTER_CROP;setBackgroundColor(Color.rgb(34,40,48));setImageResource(android.R.drawable.ic_menu_gallery)}
-        row.addView(image,LinearLayout.LayoutParams(dp(150),dp(88)).apply{rightMargin=dp(12)})
+        val row=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(dp(10),dp(9),dp(10),dp(9));background=panel(surfaceRaised);setOnClickListener{if(!busy)dashcamPreview(media)}}
+        val image=ImageView(this).apply{scaleType=ImageView.ScaleType.CENTER_CROP;background=panel(Color.rgb(34,46,62));setImageResource(android.R.drawable.ic_menu_gallery);clipToOutline=true;contentDescription="영상 미리보기"}
+        row.addView(image,LinearLayout.LayoutParams(dp(if(carLayout())144 else 112),dp(if(carLayout())84 else 72)).apply{rightMargin=dp(12)})
         loadDashcamThumbnail(image,media)
-        val labels=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;addView(text(media.name,dvrText(14f)).apply{setTypeface(null,Typeface.BOLD);maxLines=2;ellipsize=TextUtils.TruncateAt.END});addView(text("${date(dashcamTime(media.dateTime,media.name))}\n${bytes(media.size)}",dvrText(11f),muted).apply{setPadding(0,dp(5),0,0)})}
+        val labels=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;addView(text(media.name,dvrText(13f)).apply{setTypeface(null,Typeface.BOLD);maxLines=2;ellipsize=TextUtils.TruncateAt.END});addView(text("${date(dashcamTime(media.dateTime,media.name))}  ·  ${bytes(media.size)}",dvrText(10f),muted).apply{setPadding(0,dp(5),0,0);maxLines=1;ellipsize=TextUtils.TruncateAt.END})}
         row.addView(labels,LinearLayout.LayoutParams(0,-2,1f))
         row.addView(button("Drive ↑"){uploadDashcam(media)},LinearLayout.LayoutParams(dp(92),dp(46)).apply{rightMargin=dp(5)})
         row.addView(text("⋮",22f,muted).apply{gravity=Gravity.CENTER;setOnClickListener{dashcamActions(category,media)}},LinearLayout.LayoutParams(dp(38),dp(42)))
-        host.addView(row,LinearLayout.LayoutParams(-1,dp(106)).apply{bottomMargin=dp(7)})
+        host.addView(row,LinearLayout.LayoutParams(-1,dp(if(carLayout())104 else 92)).apply{bottomMargin=dp(8)})
     }
     private fun loadDashcamThumbnail(view:ImageView,media:DashcamApi.Media){
         val key=dashcamKey(media)
@@ -480,7 +498,7 @@ class MainActivity:Activity(){
         }catch(_:Exception){}
     }
     private fun confirmDashcamCacheReset(){AlertDialog.Builder(this).setTitle("대시캠 캐시 초기화").setMessage("저장된 목록과 썸네일을 지우고 현재 선택된 달의 기록을 다시 읽습니다.").setNegativeButton("취소",null).setPositiveButton("이 달 다시 읽기"){_,_->dashcamCacheFile().delete();File(filesDir,"dvr_thumbs").listFiles()?.forEach{it.delete()};dashcamThumbs.evictAll();dashcamThumbnailStates.clear();dashcamItems=emptyList();dashcamCategories=emptyList();dashcamScannedMonths.clear();showDashcam(true)}.show()}
-    private fun dvrText(size:Float)=if(carLayout())size*2.0f else size
+    private fun dvrText(size:Float)=if(carLayout())size*1.65f else size
     /** The vehicle can return a new id for the same physical clip after refresh. */
     private fun dashcamKey(media:DashcamApi.Media)=DashcamIdentity.key(media)
     private fun dashcamGroup(category:DashcamApi.Category)=when(category.type.lowercase(Locale.ROOT)){"emergency"->"긴급";"avm","avm_emergency"->"서라운드";"photo"->"사진";else->"상시"}
@@ -661,7 +679,7 @@ class MainActivity:Activity(){
         box.addView(text(icon,30f,accent).apply{gravity=Gravity.CENTER})
         box.addView(text(titleText,16f).apply{setTypeface(null,Typeface.BOLD);gravity=Gravity.CENTER;setPadding(0,dp(9),0,dp(5))})
         box.addView(text(detail,12f,muted).apply{gravity=Gravity.CENTER;textAlignment=View.TEXT_ALIGNMENT_CENTER;setPadding(0,0,0,dp(14))})
-        box.addView(button(actionText,action),LinearLayout.LayoutParams(-1,dp(44)))
+        box.addView(button(actionText,click=action),LinearLayout.LayoutParams(-1,dp(44)))
         host.addView(box,LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(8)})
     }
     private fun update(s:String){runOnUiThread{state.text=s}}

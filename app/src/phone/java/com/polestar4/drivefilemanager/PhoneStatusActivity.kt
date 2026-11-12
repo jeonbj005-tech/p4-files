@@ -6,9 +6,12 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
+import android.content.res.ColorStateList
+import android.graphics.drawable.RippleDrawable
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -32,9 +35,14 @@ class PhoneStatusActivity : Activity() {
     private val refreshing = AtomicBoolean(false)
     private lateinit var state: TextView
     private lateinit var log: TextView
-    private val bg = Color.rgb(10, 12, 15)
-    private val panel = Color.rgb(22, 26, 31)
+    private val bg = Color.rgb(8, 12, 20)
+    private val panel = Color.rgb(17, 24, 35)
+    private val raised = Color.rgb(26, 36, 50)
+    private val accent = Color.rgb(91, 194, 255)
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
+    private fun rounded(color: Int, radius: Int = 22) = GradientDrawable().apply {
+        setColor(color); cornerRadius = dp(radius).toFloat(); setStroke(dp(1), Color.argb(28, 190, 215, 242))
+    }
 
     private val poll = object : Runnable {
         override fun run() {
@@ -49,47 +57,81 @@ class PhoneStatusActivity : Activity() {
         window.navigationBarColor = bg
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(24), dp(24), dp(24), dp(16))
-            setBackgroundColor(bg)
+            setPadding(dp(24), dp(24), dp(24), dp(18))
+            background = GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                intArrayOf(Color.rgb(12, 20, 33), bg, Color.rgb(9, 15, 25)))
+        }
+        root.setOnApplyWindowInsetsListener { view, insets ->
+            view.setPadding(dp(24) + insets.systemWindowInsetLeft, dp(24) + insets.systemWindowInsetTop,
+                dp(24) + insets.systemWindowInsetRight, dp(18) + insets.systemWindowInsetBottom)
+            insets
         }
         root.addView(TextView(this).apply {
+            text = "P4  /  VEHICLE LINK"
+            textSize = 12f
+            letterSpacing = .16f
+            setTextColor(accent)
+            setTypeface(null, Typeface.BOLD)
+            setPadding(0, 0, 0, dp(8))
+        })
+        root.addView(TextView(this).apply {
             text = "P4 차량 상태"
-            textSize = 28f
+            textSize = 32f
             setTextColor(Color.WHITE)
             setTypeface(null, Typeface.BOLD)
         })
         root.addView(TextView(this).apply {
             text = "차량 앱이 Google Drive에 기록한 DVR 연결 상태"
-            textSize = 15f
-            setTextColor(Color.rgb(151, 162, 174))
-            setPadding(0, dp(8), 0, dp(18))
+            textSize = 16f
+            setTextColor(Color.rgb(164, 178, 196))
+            setPadding(0, dp(8), 0, dp(22))
         })
         state = TextView(this).apply {
             text = "상태를 불러오려면 차량과 같은 Google 계정으로 연결하세요."
-            textSize = 18f
+            textSize = 19f
             setTextColor(Color.WHITE)
-            setPadding(dp(18), dp(18), dp(18), dp(18))
-            background = GradientDrawable().apply { setColor(panel); cornerRadius = dp(24).toFloat() }
+            setTypeface(null, Typeface.BOLD)
+            setPadding(dp(20), dp(20), dp(20), dp(20))
+            background = rounded(raised, 24)
         }
-        root.addView(state)
+        root.addView(state, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(22) })
+        root.addView(TextView(this).apply {
+            text = "최근 연결 기록"
+            textSize = 14f
+            letterSpacing = .08f
+            setTextColor(Color.rgb(164, 178, 196))
+            setTypeface(null, Typeface.BOLD)
+            setPadding(dp(2), 0, 0, dp(8))
+        })
         log = TextView(this).apply {
             text = "차량에서 ‘깨우기 테스트’를 시작하면 기록이 여기에 나타납니다.\n영상이나 원본 파일은 전송하지 않습니다."
-            textSize = 15f
-            setTextColor(Color.rgb(205, 213, 222))
-            setPadding(dp(4), dp(18), dp(4), dp(18))
+            textSize = 16f
+            setTextColor(Color.rgb(219, 228, 239))
+            setLineSpacing(dp(4).toFloat(), 1f)
+            setPadding(dp(18), dp(18), dp(18), dp(18))
+            background = rounded(panel, 20)
         }
-        root.addView(ScrollView(this).apply { addView(log) }, LinearLayout.LayoutParams(-1, 0, 1f))
-        val actions = LinearLayout(this).apply { gravity = Gravity.END }
-        actions.addView(actionButton("Drive 연결") { login() })
-        actions.addView(actionButton("새로고침") { if (api.connected) refresh() else login() })
+        root.addView(ScrollView(this).apply { addView(log); isFillViewport = true; clipToPadding = false },
+            LinearLayout.LayoutParams(-1, 0, 1f))
+        val actions = LinearLayout(this).apply { gravity = Gravity.CENTER; setPadding(0, dp(14), 0, 0) }
+        actions.addView(actionButton("Drive 연결", true) { login() }, LinearLayout.LayoutParams(0, dp(56), 1f).apply { rightMargin = dp(8) })
+        actions.addView(actionButton("새로고침") { if (api.connected) refresh() else login() }, LinearLayout.LayoutParams(0, dp(56), 1f))
         root.addView(actions)
         setContentView(root)
         if (api.connected) refresh()
     }
 
-    private fun actionButton(label: String, action: () -> Unit) = Button(this).apply {
+    private fun actionButton(label: String, primary: Boolean = false, action: () -> Unit) = Button(this).apply {
         text = label
         isAllCaps = false
+        textSize = 15f
+        setTypeface(null, Typeface.BOLD)
+        setTextColor(Color.WHITE)
+        background = if (primary) GradientDrawable(GradientDrawable.Orientation.TL_BR,
+            intArrayOf(Color.rgb(27, 126, 208), Color.rgb(28, 183, 214))).apply { cornerRadius = dp(18).toFloat() }
+            else rounded(raised, 18)
+        if (Build.VERSION.SDK_INT >= 21) foreground = RippleDrawable(ColorStateList.valueOf(Color.argb(42, 255, 255, 255)), null, rounded(Color.WHITE, 18))
+        minHeight = dp(54)
         setOnClickListener { action() }
     }
 

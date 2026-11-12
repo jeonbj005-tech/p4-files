@@ -1,5 +1,13 @@
 # P4 Files 개발 현황
 
+2026-11-13 · 차량·폰 UI 리프레시 / v1.53
+
+- 다크 네이비 바탕, 청록-블루 포인트, 얇은 경계선과 눌림 피드백으로 차량·폰 UI를 통일했다. 파일 카드와 목록의 글자 크기, 간격, 터치 영역도 조정했다.
+- 차량 대시캠 달력은 높이를 줄이고 날짜별 녹화 종류를 색상 점과 전체 개수로 표시한다. 선택한 날짜의 종류별 개수는 기존 필터 탭에서 확인한다. 오른쪽 목록 독립 스크롤과 대시캠 시작 화면은 유지했다.
+- 휴대폰 상태 화면은 연결 상태 카드, 최근 기록 영역, 큰 하단 액션 버튼으로 재구성했다. 데이터 흐름과 DVR 접근 로직은 변경하지 않았다.
+- 버전 1.53 / versionCode 63. `assembleVehicleDebug`, `assemblePhoneDebug` 성공. APK: `releases/P4-Files-v1.53.apk` SHA-256 `8EE8164FD465742D410A7ED71A25818D538DD2F86AE5C1932FB52DDAAEDDA5E8`; `releases/P4-Files-phone-v1.53.apk` SHA-256 `E1E4EA26D074BAFD64481092B8DDC772F3768315324E1A92AB8F1D08762BEFF1`.
+- 자동 테스트와 에뮬레이터 화면 확인은 실행하지 않았다. 따라서 UI 배치·터치 영역·글자 크기는 빌드 성공까지만 확인했고, 차량 해상도에서 시각 검증과 새 APK의 자동 업데이트 배포는 남아 있다. APK는 로컬에만 보관한다.
+
 2026-11-13 · 폰↔차량 Drive 연동·대용량 업로드 진단 / v1.52
 
 - 인증 경로 결함을 코드에서 확인: 차량은 GMS 사용 가능 여부에 따라 전체 `drive` Android AuthorizationClient 또는 TV Device Code `drive.file`로 갈렸다. 현재 등록된 차량 클라이언트는 TV/Limited Input이고 폰은 별도 Android 클라이언트이므로 차량은 TV Device Code로 고정해 양쪽 모두 `drive.file`로 요청한다. 기존 차량의 레거시 Play Services 토큰은 첫 실행 때 폐기하고 재인증을 요구한다.
