@@ -1,5 +1,11 @@
 # P4 Files 개발 현황
 
+2026-11-12 · 차량/폰 APK 에뮬레이터 설치 점검
+
+- 차량 APK v1.48을 `CameraAlertSettingsPreview32` 에뮬레이터에 v1.46 위로 설치했고 `MainActivity` 실행을 확인했다. 이 기기는 실제 SDK 31 일반 Android 이미지이며 Automotive feature가 없다. DVR 주소 `198.18.37.20:80` 연결은 8초 후 실패했다.
+- 폰 APK v1.48을 `P4SoundPlayStore34` SDK 34 에뮬레이터에 설치했고 `PhoneStatusActivity` 및 Drive 연결/새로고침 UI를 확인했다.
+- 앱 프로세스 크래시는 관찰되지 않았다. Google 로그인/Drive 접근은 수행하지 않았고, OAuth 자격 증명도 비어 있어 차량-폰 왕복은 미검증이다. 이 에뮬레이터 점검은 Polestar AAOS 실차 검증을 대체하지 않는다.
+
 2026-11-12 · 차량·폰 Drive 연동 설정 점검
 
 - `TV_OAUTH_CLIENT_ID/SECRET`을 차량 flavor에만 주입하도록 Gradle 설정을 분리했다. 폰 APK에는 차량 OAuth 자격 증명이 포함되지 않는다.
