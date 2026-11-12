@@ -44,7 +44,7 @@ class DriveApi(private val ctx: Context) {
             val failure=when{code==401->"TOKEN_ERROR";reason=="storageQuotaExceeded"->"DRIVE_STORAGE_FULL";code==403->"DRIVE_PERMISSION_DENIED";reason=="access_denied"->"OAUTH_ACCESS_DENIED";else->"HTTP_ERROR"}
             val message=when(failure){"DRIVE_STORAGE_FULL"->"Google Drive 저장공간이 부족합니다. ($detail)";"DRIVE_PERMISSION_DENIED"->"Google Drive 권한을 확인하세요. ($detail)";else->"$detail (HTTP $code)"}
             AuthDiagnostics.event("DRIVE_API_REQUEST","FAILED",failure,"http=$code reason=$reason")
-            throw AuthFailure(failure,message)
+            throw AuthFailure(failure,message,reason=reason)
         }
         return j
     }
@@ -97,7 +97,11 @@ class DriveApi(private val ctx: Context) {
     }
     fun publishWakeStatus(content:String,savedId:String?):String{
         val existingId=savedId?.takeIf{it.isNotBlank()}?:findWakeStatusFile()?.id
-        if(existingId!=null)try{return writeSmallJson(existingId,content)}catch(e:AuthFailure){if(!e.message.orEmpty().contains("File not found",true))throw e}
+        if(existingId!=null)try{return writeSmallJson(existingId,content)}catch(e:AuthFailure){
+            if(!isStaleWakeStatusFailure(e.reason))throw e
+            val replacement=findWakeStatusFile()?.id
+            if(replacement!=null&&replacement!=existingId)try{return writeSmallJson(replacement,content)}catch(retry:AuthFailure){if(!isStaleWakeStatusFailure(retry.reason))throw retry}
+        }
         return writeSmallJson(null,content)
     }
     private fun writeSmallJson(id:String?,content:String):String{
@@ -156,7 +160,7 @@ class DriveApi(private val ctx: Context) {
         }
         if(knownLength&&offset>length)throw IOException("Drive 업로드 위치가 파일 크기를 초과했습니다.")
         val input=openSource(offset)?:throw IOException("파일을 열 수 없습니다.")
-        input.use{raw->val stream=PushbackInputStream(raw,1);progress(offset);val chunk=ByteArray(1024*1024)
+        input.use{raw->val stream=PushbackInputStream(raw,1);progress(offset);val chunk=ByteArray(4*1024*1024)
             while(true){
                 val wanted=if(knownLength)minOf(chunk.size.toLong(),length-offset).toInt() else chunk.size
                 if(wanted==0)throw IOException("Drive 업로드가 완료되지 않았습니다.")
@@ -165,14 +169,17 @@ class DriveApi(private val ctx: Context) {
                 if(count==0)throw EOFException(if(knownLength)"예상보다 파일이 짧습니다." else "빈 파일은 업로드할 수 없습니다.")
                 if(knownLength&&count<wanted)throw EOFException("예상보다 파일이 짧습니다.")
                 val last=if(knownLength)offset+count==length else if(count<wanted)true else {val next=stream.read();if(next<0)true else{stream.unread(next);false}}
-                var accepted=0
+                var accepted=0;var noProgress=0
                 while(accepted<count){
                     val start=offset+accepted;val end=offset+count-1;val c=request(session,"PUT")
                     try{
-                        c.doOutput=true;c.setFixedLengthStreamingMode(count-accepted);c.setRequestProperty("Content-Type",mime);c.setRequestProperty("Content-Range","bytes $start-$end/${if(last)offset+count else "*"}")
+                        c.doOutput=true;c.setFixedLengthStreamingMode(count-accepted);c.setRequestProperty("Content-Type",mime);c.setRequestProperty("Content-Range",driveUploadContentRange(start,end+1,length,last))
                         c.outputStream.use{it.write(chunk,accepted,count-accepted)}
                         val code=c.responseCode
-                        if(code==308){val next=uploadedOffset(c);if(next<=start||next>offset+count)throw IOException("Drive 업로드 위치가 진행되지 않았습니다.");accepted=(next-offset).toInt();progress(next)}
+                        if(code==308){val next=uploadedOffset(c);when(uploadChunkProgress(next,start,offset+count)){
+                            ChunkProgress.NONE->{if(++noProgress>2)throw IOException("Drive 업로드 위치가 진행되지 않았습니다.")}
+                            ChunkProgress.ADVANCED->{accepted=(next-offset).toInt();noProgress=0;progress(next)}
+                        }}
                         else if(code in 200..299){if(!last)throw IOException("Drive가 파일 끝보다 먼저 업로드를 완료했습니다.");progress(if(knownLength)length else offset+count);return}
                         else check(response(c))
                     }finally{c.disconnect()}
@@ -182,7 +189,7 @@ class DriveApi(private val ctx: Context) {
             }
         }
     }
-    private fun uploadedOffset(c:HttpURLConnection)=c.getHeaderField("Range")?.substringAfterLast('-')?.toLongOrNull()?.plus(1)?:0L
+    private fun uploadedOffset(c:HttpURLConnection)=driveAcknowledgedOffset(c.getHeaderField("Range"))
     private fun skipFully(input:InputStream,count:Long){var skipped=0L;while(skipped<count){val n=input.skip(count-skipped);if(n>0)skipped+=n else if(input.read()<0)throw EOFException("업로드 재개 위치를 찾을 수 없습니다.") else skipped++}}
     fun download(id:String,output:OutputStream,progress:(Long)->Unit){val c=request("https://www.googleapis.com/drive/v3/files/${Uri.encode(id)}?alt=media");try{if(c.responseCode !in 200..299){check(response(c));throw IOException("다운로드 실패")};c.inputStream.use{copy(it,output,progress)}}finally{c.disconnect()}}
     fun downloadResumable(id:String,file:File,progress:(Long)->Unit){var offset=if(file.exists())file.length() else 0L;val c=request("https://www.googleapis.com/drive/v3/files/${Uri.encode(id)}?alt=media");if(offset>0)c.setRequestProperty("Range","bytes=$offset-");try{val code=c.responseCode;if(code !in 200..299){check(response(c));throw IOException("다운로드 실패")};val append=code==206&&offset>0;if(!append)offset=0;FileOutputStream(file,append).use{out->c.inputStream.use{input->val buffer=ByteArray(256*1024);var total=offset;while(true){val n=input.read(buffer);if(n<0)break;out.write(buffer,0,n);total+=n;progress(total)}}}}finally{c.disconnect()}}

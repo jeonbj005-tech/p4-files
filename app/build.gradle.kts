@@ -11,7 +11,7 @@ fun quotedBuildValue(name: String): String =
 
 android {
     namespace = "com.polestar4.drivefilemanager"; compileSdk = 35
-    defaultConfig { applicationId = "com.polestar4.drivefilemanager"; minSdk = 26; targetSdk = 35; versionCode = 61; versionName = "1.51"
+    defaultConfig { applicationId = "com.polestar4.drivefilemanager"; minSdk = 26; targetSdk = 35; versionCode = 62; versionName = "1.52"
         buildConfigField("String", "OAUTH_CLIENT_ID", "\"\"")
         buildConfigField("String", "OAUTH_CLIENT_SECRET", "\"\"")
         buildConfigField("String", "TV_OAUTH_CLIENT_ID", "\"\"")
@@ -39,4 +39,14 @@ dependencies {
     implementation("com.google.android.gms:play-services-auth:21.6.0")
     implementation("androidx.media3:media3-exoplayer:1.5.1")
     implementation("androidx.media3:media3-ui:1.5.1")
+}
+
+tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
+    if (name.startsWith("test") && name.endsWith("UnitTest")) {
+        // Kotlin test classes are emitted outside AGP's default javac-only test directory.
+        val variant = name.removePrefix("test").removeSuffix("UnitTest").replaceFirstChar { it.lowercase() }
+        val kotlinTestClasses = layout.buildDirectory.dir("tmp/kotlin-classes/${variant}UnitTest")
+        testClassesDirs = files(kotlinTestClasses)
+        classpath = files(classpath, kotlinTestClasses)
+    }
 }

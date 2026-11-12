@@ -1,5 +1,27 @@
 # P4 Files 버그 리포트
 
+## 2026-11-13 — 폰/차량 상태 미연동 및 280MB DVR 업로드 실패 진단
+
+### 코드에서 확인된 결함과 수정
+
+- 차량 OAuth는 GMS 가용 여부에 따라 두 인증 경로를 탔다. GMS가 있으면 차량 Android AuthorizationClient가 제한된 프로젝트 구성으로 전체 `drive`를 요청했고, GMS가 없으면 등록된 TV 클라이언트로 `drive.file`을 요청했다. 이를 차량 TV Device Code로 통일해 폰과 차량이 동일 Cloud 프로젝트·동일 `drive.file` 범위를 쓰도록 했다. 차량은 첫 실행 때 기존 Play Services 세션을 지우고 재인증한다.
+- 차량의 relay JSON 기존 파일 ID가 접근 불가해 403을 받아도 기존 코드는 응답 문구가 정확히 `File not found`일 때만 새 파일로 복구했다. Drive API가 반환하는 `insufficientFilePermissions` 등의 reason을 보존하고, stale ID이면 검색 가능한 상태 파일을 재사용하거나 새 파일을 생성하도록 변경했다.
+- 차량 Worker는 Drive 동기화 실패 원인을 예외 클래스만 기록했다. 이제 Drive 오류 코드와 reason을 로컬·relay 로그에 남겨 인증/권한/쿼터 원인을 구분한다. Access token, upload session URL은 기록하지 않는다.
+- 알려진 길이의 중간 업로드 청크에서 `Content-Range` 총 길이가 `*`였다. Drive resumable 규약에 맞게 전체 파일 길이를 전송한다. `308` 응답에 Range가 없어 0바이트 승인된 경우 같은 청크를 세 번까지 재요청한다. 4MiB 청크로 280MiB 업로드를 약 70회 요청으로 줄인다.
+- DVR 원본은 차량 저장소에 임시 완본으로 내려받지 않고 파일 목록 세션 안에서 직접 스트리밍한다. 280MB는 Drive의 최대 단일 파일 크기(5,120GB)를 넘지 않는다. ([제한](https://developers.google.com/workspace/drive/api/reference/rest/v3/files/create), [resumable 규약](https://developers.google.com/workspace/drive/api/guides/manage-uploads))
+
+### v1.52 검증
+
+- 차량·폰 각각 17개 단위 테스트와 양쪽 Lint, APK assemble이 성공했다. AAOS API 33과 Android 14 API 34 에뮬레이터에 APK를 설치하고 실행했으며, GMS 사용 가능 상태의 AAOS에서 TV Device Code 요청이 준비되는 것을 확인했다.
+- 에뮬레이터에 Google 계정과 Polestar DVR endpoint가 없어 승인 후 Drive 상태 왕복이나 실제 280MB 영상 스트림 업로드는 확인하지 못했다. 실제 계정에서의 두 OAuth 클라이언트 간 `drive.file` 가시성은 차량·폰 동시 테스트가 필요하다.
+
+### 원인 확정 범위
+
+- **확인된 코드 결함:** 차량 GMS 상태별 인증 불일치, relay 파일 ID의 403 복구 누락, 알려진 크기 업로드의 잘못된 Content-Range 총 길이, 308 무진행 시 즉시 실패.
+- **미확정:** 사용자 계정의 실제 폰↔차량 Drive 왕복과 실차 DVR 280MB 업로드. AVD에는 Google 계정이 로그인되어 있지 않고 DVR endpoint도 제공되지 않는다. 저장공간, 실제 네트워크, 계정/Cloud OAuth 프로젝트 일치 여부는 실제 계정/차량 없이 확정할 수 없다.
+
+## 2026-11-12 — 직전 v1.51 상태
+
 ## 2026-11-12 — 대용량 DVR Drive 업로드 실패 / 폰 상태 연동 확인 불가
 
 - 사용자 보고: 폰 앱과 차량 앱의 상태 연동이 안 되고, 대시캠 영상도 Google Drive에 업로드되지 않음. 단일 영상 크기는 약 280MB로 보고됨.

@@ -1,6 +1,13 @@
 # P4 Drive File Manager OAuth 분석 및 수정 보고서
 
-## 현재 v1.48 연동 방식 (2026-11-12)
+## v1.52 차량·폰 relay 인증 경로 (2026-11-13)
+
+- 차량은 GMS 존재 여부와 무관하게 등록된 TV/Limited Input Device Code Flow로 `drive.file`을 요청한다. 기존 하이브리드 경로는 에뮬레이터에서 전체 `drive`를 Android AuthorizationClient로 요청했지만, 이는 실제 차량용 TV OAuth 등록과 다른 인증 클라이언트/범위였다.
+- 첫 실행은 저장된 레거시 Play Services 토큰을 지우고 재인증한다. 폰 앱도 Android AuthorizationClient로 `drive.file`을 요청한다. 두 OAuth 클라이언트는 같은 Cloud 프로젝트에 있어야 하며 폰과 차량은 같은 Google 계정을 골라야 한다.
+- `drive.file`은 앱이 만들었거나 사용자가 앱과 공유/선택한 파일만 허용한다. 따라서 이는 전체 Drive 폴더 탐색 권한을 보장하지 않는다. [Drive scope 정의](https://developers.google.com/workspace/drive/api/guides/api-specific-auth), [TV 제한 입력 기기 흐름 및 허용 scope](https://developers.google.com/identity/protocols/oauth2/limited-input-device)
+- 실제 두 클라이언트 간 파일 가시성과 폰-차량 상태 왕복은 사용자 계정 승인이 없어서 여전히 미확인이다. AVD 설치/시작만으로 Drive 인증 성공을 주장하지 않는다.
+
+## 과거 v1.48 연동 방식 (2026-11-12)
 
 - 차량은 Google Play services가 있으면 `AuthorizationClient`의 전체 Drive scope를 사용하고, 없으면 TV/Limited Input Device Code Flow로 전환해 `openid email drive.file`을 요청한다.
 - 차량 Device Code Flow는 TV OAuth client ID와 secret이 필요하다. 로컬 `oauth.properties`에서 읽고, 현재 저장소에는 그 파일이 없다.

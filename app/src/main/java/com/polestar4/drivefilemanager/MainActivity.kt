@@ -25,14 +25,7 @@ import androidx.documentfile.provider.DocumentFile
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
-import com.google.android.gms.auth.api.identity.AuthorizationRequest
-import com.google.android.gms.auth.api.identity.AuthorizationResult
-import com.google.android.gms.auth.api.identity.Identity
-import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
-import com.google.android.gms.common.api.ApiException
-import com.google.android.gms.common.api.CommonStatusCodes
-import com.google.android.gms.common.api.Scope
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -50,7 +43,6 @@ class MainActivity:Activity(){
     private val dashcamApi by lazy { DashcamApi.shared }
     private val dashcamThumbnailCache by lazy { ThumbnailDiskCache(File(filesDir,"dvr_thumbs")) }
     private val appUpdater by lazy { AppUpdater(this) }
-    private val authorizationClient by lazy { Identity.getAuthorizationClient(this) }
     private val worker=Executors.newSingleThreadExecutor()
     private val updateWorker=Executors.newSingleThreadExecutor()
     private val updateRunning=AtomicBoolean(false)
@@ -105,7 +97,6 @@ class MainActivity:Activity(){
     private var firstDashcamIntro=true
     private var dashcamEntranceAnimated=false
     private val dashcamMonth=java.util.Calendar.getInstance().apply{set(java.util.Calendar.DAY_OF_MONTH,1)}
-    private val authorizationRequestCode=74
     private val bg=Color.rgb(10,12,15)
     private val surface=Color.rgb(22,26,31)
     private val surfaceRaised=Color.rgb(30,35,42)
@@ -117,7 +108,7 @@ class MainActivity:Activity(){
     private fun caption(value:String){subtitle.text=value;subtitle.visibility=if(value.isBlank())View.GONE else View.VISIBLE}
     private fun carLayout()=packageManager.hasSystemFeature("android.hardware.type.automotive")||(resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE&&resources.configuration.screenWidthDp>=600)
     private fun button(s:String,click:()->Unit)=Button(this).apply{text=s;isAllCaps=false;textSize=if(carLayout())18f else 13f;setTextColor(Color.rgb(226,237,251));setPadding(dp(if(carLayout())20 else 13),0,dp(if(carLayout())20 else 13),0);minHeight=dp(if(carLayout())54 else 42);minimumWidth=0;minWidth=0;background=panel(surfaceRaised);setOnClickListener{if(!busy)click()}}
-    override fun onCreate(b:Bundle?){super.onCreate(b);window.statusBarColor=bg;window.navigationBarColor=bg;layout();restoreSavedStorage();if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),90);showDashcam(false);handler.postDelayed({checkAutomaticAppUpdate()},5_000)}
+    override fun onCreate(b:Bundle?){super.onCreate(b);if(api.connected&&!api.vehicleMode)api.logout();window.statusBarColor=bg;window.navigationBarColor=bg;layout();restoreSavedStorage();if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),90);showDashcam(false);handler.postDelayed({checkAutomaticAppUpdate()},5_000)}
     private fun layout(){
         val root=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(16),dp(10),dp(16),dp(8));setBackgroundColor(bg)}
         root.setOnApplyWindowInsetsListener { view,insets -> view.setPadding(dp(16)+insets.systemWindowInsetLeft,dp(10)+insets.systemWindowInsetTop,dp(16)+insets.systemWindowInsetRight,dp(8)+insets.systemWindowInsetBottom);insets }
@@ -677,28 +668,15 @@ class MainActivity:Activity(){
     private fun login(){
         if(busy)return
         val playServices=GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(this)
-        if(playServices!=ConnectionResult.SUCCESS){vehicleLogin(playServices);return}
-        busy=true;progress.visibility=View.VISIBLE;state.text="Google 전체 권한 요청 중"
-        AuthDiagnostics.event("CONFIG_CHECK","SUCCESS","ANDROID_OAUTH_CLIENT_REQUIRED","package=$packageName sha1=${AuthDiagnostics.fingerprint(this)}")
-        AuthDiagnostics.event("AUTH_START","START","AUTHORIZATION_CLIENT")
-        val request=AuthorizationRequest.builder().setRequestedScopes(listOf(Scope(DriveApi.DRIVE_SCOPE))).build()
-        authorizationClient.authorize(request)
-            .addOnSuccessListener{result->
-                AuthDiagnostics.event("AUTH_CALLBACK","SUCCESS",if(result.hasResolution())"CONSENT_REQUIRED" else "TOKEN_READY")
-                if(result.hasResolution()){
-                    busy=false;progress.visibility=View.GONE
-                    try{startIntentSenderForResult(result.pendingIntent!!.intentSender,authorizationRequestCode,null,0,0,0)}
-                    catch(e:Exception){authFailed("AUTH_UI_FAILED",e.message?:e.javaClass.simpleName)}
-                }else finishAuthorization(result)
-            }
-            .addOnFailureListener{e->authFailed(classifyAuthorizationError(e),e.message?:e.javaClass.simpleName)}
+        AuthDiagnostics.event("AUTH_START","START","VEHICLE_DEVICE_CODE","playServicesAvailable=${playServices==0}")
+        vehicleLogin()
     }
-    private fun vehicleLogin(playServicesCode:Int){
+    private fun vehicleLogin(){
         val auth=DeviceCodeAuth()
         if(!auth.configured()){authFailed("CONFIG_MISSING","차량용 TVs and Limited Input devices OAuth Client가 설정되지 않았습니다.");return}
         busy=true;progress.visibility=View.VISIBLE;state.text="차량 호환 인증 준비 중"
         val cancel=AtomicBoolean(false);vehicleAuthCancel=cancel
-        AuthDiagnostics.event("CONFIG_CHECK","SUCCESS","VEHICLE_DEVICE_CODE","playServicesCode=$playServicesCode scope=${DriveApi.VEHICLE_SCOPE}")
+        AuthDiagnostics.event("CONFIG_CHECK","SUCCESS","VEHICLE_DEVICE_CODE","scope=${DriveApi.VEHICLE_SCOPE}")
         worker.execute{
             try{
                 val challenge=auth.begin()
@@ -731,20 +709,7 @@ class MainActivity:Activity(){
             finally{vehicleAuthCancel=null}
         }
     }
-    private fun classifyAuthorizationError(e:Exception):String{
-        val status=(e as? ApiException)?.statusCode
-        return when(status){CommonStatusCodes.NETWORK_ERROR->"NETWORK_ERROR";CommonStatusCodes.CANCELED->"OAUTH_ACCESS_DENIED";else->"AUTHORIZATION_FAILED"}
-    }
     private fun authFailed(code:String,detail:String){vehicleAuthDialog?.dismiss();vehicleAuthDialog=null;busy=false;progress.visibility=View.GONE;state.text="$code: Google 로그인 실패";AuthDiagnostics.event("AUTH_COMPLETE","FAILED",code,detail);AlertDialog.Builder(this).setTitle("Google Drive 연결 실패").setMessage("$code: $detail").setPositiveButton("확인",null).show()}
-    private fun finishAuthorization(result:AuthorizationResult){
-        val token=result.accessToken
-        if(token.isNullOrBlank()){authFailed("TOKEN_MISSING","Google Play services가 액세스 토큰을 반환하지 않았습니다.");return}
-        AuthDiagnostics.event("TOKEN_EXCHANGE","SUCCESS","PLAY_SERVICES_TOKEN")
-        api.acceptAccessToken(token)
-        AuthDiagnostics.event("AUTH_COMPLETE","SUCCESS","FULL_DRIVE_SCOPE")
-        busy=false;progress.visibility=View.GONE
-        task("Drive 권한 확인 중"){val list=api.listFolder("root");runOnUiThread{remotePath.clear();remotePath.add("root" to "Google Drive");renderDrive(list);state.text="Google Drive 전체 권한 연결 완료"}}
-    }
     private fun showDrive(){if(!api.connected){login();return};task("폴더 불러오는 중"){val list=api.listFolder(remotePath.last().first);runOnUiThread{renderDrive(list);state.text=if(api.vehicleMode)"차량 호환 모드 · ${list.size}개 항목" else "${list.size}개 항목"}}}
     private fun renderDrive(list:List<DriveApi.DriveFile>){driveItems=list;mode="drive";title.text=remotePath.last().second;subtitle.text=(if(api.vehicleMode)"차량 호환 모드 · 앱이 만든/허용된 파일  ·  " else "")+remotePath.joinToString("  ›  "){it.second};body.removeAllViews();actions.removeAllViews()
         if(selectionMode){actions.addView(button("선택 종료"){selectionMode=false;selectedDrive.clear();renderDrive(driveItems)},LinearLayout.LayoutParams(-2,dp(42)).apply{rightMargin=dp(6)});actions.addView(button("모두"){selectedDrive.addAll(driveItems.map{it.id});renderDrive(driveItems)},LinearLayout.LayoutParams(-2,dp(42)).apply{rightMargin=dp(6)});actions.addView(button("다운로드"){bulkDrive("download")},LinearLayout.LayoutParams(-2,dp(42)).apply{rightMargin=dp(6)});actions.addView(button("휴지통"){bulkDrive("trash")})}
@@ -947,11 +912,6 @@ class MainActivity:Activity(){
                     runOnUiThread{val p=updatePrefs();val source=p.getString("pending_update_source_uri",null)?.let(Uri::parse);val name=p.getString("pending_name","P4-Files-update.apk").orEmpty();val expectedSize=p.getLong("pending_size",0L);val expectedSha=p.getString("pending_sha","").orEmpty();AlertDialog.Builder(this).setCancelable(false).setTitle("업데이트 APK 확인 실패").setMessage("${e.message?:e.javaClass.simpleName}\n\n검증된 APK를 Download에 저장해 순정 파일 앱에서 설치할 수 있습니다.").setNegativeButton("닫기"){_,_->clearPendingUpdate()}.setPositiveButton("Download 저장"){_,_->clearPendingUpdate();if(source!=null)saveUpdateToPublicDownloads(source,name,expectedSize,expectedSha)}.show()}
                 }
             }
-            return
-        }
-        if(r==authorizationRequestCode){
-            if(c!=RESULT_OK||d==null){authFailed("OAUTH_ACCESS_DENIED","사용자가 Google 권한 승인을 취소했거나 승인 결과가 없습니다.");return}
-            try{finishAuthorization(authorizationClient.getAuthorizationResultFromIntent(d))}catch(e:ApiException){authFailed(classifyAuthorizationError(e),"status=${e.statusCode}: ${e.message.orEmpty()}")}
             return
         }
         if(c!=RESULT_OK||d==null){if(r==76){pendingUpdateSource=null;pendingUpdateName=null;state.text="업데이트 저장 취소"};return}

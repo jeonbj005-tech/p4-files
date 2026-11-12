@@ -21,8 +21,8 @@ object AuthDiagnostics {
         val gmsStatus=try{val info=context.packageManager.getPackageInfo("com.google.android.gms",0);"AVAILABLE ${info.versionName}"}catch(_:Exception){"NOT_AVAILABLE"}
         val authClient=try{Class.forName("com.google.android.gms.auth.api.identity.Identity");"AVAILABLE"}catch(_:Exception){"NOT_BUNDLED"}
         val api=DriveApi(context)
-        return "package=${context.packageName}\napplicationId=${BuildConfig.APPLICATION_ID}\nversion=${BuildConfig.VERSION_NAME}\nsha1=${fingerprint(context)}\nandroid=${Build.VERSION.RELEASE}\nsdk=${Build.VERSION.SDK_INT}\ngooglePlayServices=$gmsStatus\nauthorizationClient=$authClient\nauthMode=HYBRID_PLAY_SERVICES_OR_DEVICE_CODE\nactiveSession=${if(api.vehicleMode)"VEHICLE_DEVICE_CODE" else if(api.connected)"PLAY_SERVICES" else "NONE"}\nphoneScope=${DriveApi.DRIVE_SCOPE}\nvehicleScope=${DriveApi.VEHICLE_SCOPE}\nvehicleClientConfigured=${BuildConfig.TV_OAUTH_CLIENT_ID.isNotBlank()}\nvehicleClientSecretConfigured=${BuildConfig.TV_OAUTH_CLIENT_SECRET.isNotBlank()}\nandroidOAuthRegistrationRequired=true\nvehicleOAuthType=TVS_AND_LIMITED_INPUT_DEVICES\n"
+        return "package=${context.packageName}\napplicationId=${BuildConfig.APPLICATION_ID}\nversion=${BuildConfig.VERSION_NAME}\nsha1=${fingerprint(context)}\nandroid=${Build.VERSION.RELEASE}\nsdk=${Build.VERSION.SDK_INT}\ngooglePlayServices=$gmsStatus\nauthorizationClient=$authClient\nauthMode=VEHICLE_DEVICE_CODE_ONLY\nactiveSession=${if(api.vehicleMode)"VEHICLE_DEVICE_CODE" else if(api.connected)"LEGACY_PLAY_SERVICES" else "NONE"}\nphoneScope=${DriveApi.VEHICLE_SCOPE}\nvehicleScope=${DriveApi.VEHICLE_SCOPE}\nvehicleClientConfigured=${BuildConfig.TV_OAUTH_CLIENT_ID.isNotBlank()}\nvehicleClientSecretConfigured=${BuildConfig.TV_OAUTH_CLIENT_SECRET.isNotBlank()}\nvehicleOAuthType=TVS_AND_LIMITED_INPUT_DEVICES\n"
     }
 }
 
-class AuthFailure(val code:String,message:String,cause:Throwable?=null):java.io.IOException(message,cause)
+class AuthFailure(val code:String,message:String,cause:Throwable?=null,val reason:String?=null):java.io.IOException(message,cause)

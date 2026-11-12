@@ -98,7 +98,7 @@ class DvrWakeProbeWorker(context:Context,params:WorkerParameters):Worker(context
             val id=driveApi.publishWakeStatus(json.toString(),prefs.getString(DRIVE_FILE_ID,null))
             prefs.edit().putString(DRIVE_FILE_ID,id).putBoolean(DRIVE_WARNING,false).apply()
         }catch(error:Exception){
-            if(System.currentTimeMillis()-lastDriveErrorAt>=60_000){appendLog(applicationContext,"Drive 동기화 실패 · ${error.javaClass.simpleName}");lastDriveErrorAt=System.currentTimeMillis()}
+            if(System.currentTimeMillis()-lastDriveErrorAt>=60_000){val reason=(error as? AuthFailure)?.let{it.code+it.reason?.let{r->" ($r)"}.orEmpty()}?:error.javaClass.simpleName;appendLog(applicationContext,"Drive 동기화 실패 · $reason");lastDriveErrorAt=System.currentTimeMillis()}
         }
     }
 

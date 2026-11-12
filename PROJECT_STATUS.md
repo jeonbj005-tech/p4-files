@@ -1,5 +1,19 @@
 # P4 Files 개발 현황
 
+2026-11-13 · 폰↔차량 Drive 연동·대용량 업로드 진단 / v1.52
+
+- 인증 경로 결함을 코드에서 확인: 차량은 GMS 사용 가능 여부에 따라 전체 `drive` Android AuthorizationClient 또는 TV Device Code `drive.file`로 갈렸다. 현재 등록된 차량 클라이언트는 TV/Limited Input이고 폰은 별도 Android 클라이언트이므로 차량은 TV Device Code로 고정해 양쪽 모두 `drive.file`로 요청한다. 기존 차량의 레거시 Play Services 토큰은 첫 실행 때 폐기하고 재인증을 요구한다.
+- 영향: 차량 Drive 탐색은 앱이 만들었거나 앱 접근을 허용받은 파일에 한정된다. 이 변경으로 전체 Drive 범위 탐색은 차량에서 제공하지 않는다.
+- 상태 relay 결함: 차량이 저장한 JSON 파일 ID가 이전 OAuth 상태에서 비롯되어 403 권한 거부가 나도 기존 코드는 `File not found` 문구만 검사해 영구 실패할 수 있었다. 이제 API 오류 reason을 보존하고, 파일이 없거나 접근 불가이면 접근 가능한 동일 상태 파일을 재검색하거나 새 상태 파일을 만든다. Worker 진단에는 오류 코드/reason을 남기되 토큰·URL은 기록하지 않는다.
+- 업로드 결함: 알려진 크기의 중간 청크에도 `Content-Range` 전체 크기를 `*`로 보내고 있었다. 실제 파일 크기를 매 청크에 보내며, `308` 응답에 Range가 없어 진행량이 0이면 같은 청크를 최대 3회 요청한 뒤 작업 재시도를 맡긴다. 청크는 1MiB에서 4MiB로 늘려 280MiB 파일의 요청 수를 약 280회에서 약 70회로 줄인다.
+- 대시캠 업로드는 `DashcamApi.openStream()`을 Drive resumable 업로드로 직접 연결하며 전체 영상을 차량 저장소에 먼저 복사하지 않는다. Google Drive 문서의 단일 파일 제한은 5,120GB이므로 280MB는 크기 제한 원인이 아니다. [Drive 업로드 제한](https://developers.google.com/workspace/drive/api/reference/rest/v3/files/create), [재개 업로드 절차](https://developers.google.com/workspace/drive/api/guides/manage-uploads)
+- 자동 테스트 추가: 알려진/미상 크기 Content-Range, 빈 Range, 비정상 offset, 오래되거나 접근 불가한 relay ID 복구 기준.
+- 검증 완료: 차량·폰 각각 17개 unit test, 두 variant Lint, 두 APK assemble 성공. 테스트는 한글 경로에서 Windows Gradle worker가 Kotlin 테스트 클래스를 로드하지 못해 임시 ASCII `P:` 경로로 실행했으며, Gradle 설정에 Kotlin 테스트 출력 디렉터리를 추가했다.
+- 에뮬레이터: AAOS API 33 `emulator-5554`와 Android 14 API 34 `emulator-5556`에 v1.52 설치·실행. AAOS AVD에서 GMS 사용 가능 상태에서도 차량 TV Device Code 화면이 열렸고 `DEVICE_CODE_READY` 로그를 확인한 뒤 취소했다. 폰 상태 UI도 실행됐고 최근 로그에서 앱 fatal crash는 없었다.
+- 미검증: 두 AVD에 Google 계정이 등록되지 않아 권한 승인, Drive 파일 생성/읽기, 280MB 실영상 업로드를 수행하지 못했다. AAOS AVD에는 Polestar DVR endpoint가 없어 영상 원본 스트림 검증도 불가하다. 실차에서의 Drive 앱 파일 공유 가능성도 실제 왕복으로 확인해야 한다.
+- 로컬 APK: `releases/P4-Files-v1.52.apk` SHA-256 `00C26264DFD933E5877541FA11FA01D1F4531F372C40A8A86D86F9F7C6E52018`; `releases/P4-Files-phone-v1.52.apk` SHA-256 `69EC1619037651F03A47FC44573D115F3C48D09E49C8101422262EE7B7FEC087`.
+- APK는 `releases/`에 로컬 생성한다. 차량용 빌드에는 로컬 TV OAuth 설정이 포함될 수 있어 공개 Release에는 올리지 않는다.
+
 2026-11-12 · Drive 업로드 재시도·오류 진단 / v1.51
 
 - Drive resumable 업로드는 1MiB 청크로 원본을 스트리밍하며 전체 DVR 파일을 차량 임시 저장소에 복사하지 않는다. 280MB는 크기 제한을 넘는 크기가 아니다.
@@ -20,7 +34,7 @@
 
 2026-11-12 · OAuth 준비 / v1.49
 
-- Google Cloud 전용 프로젝트 `P4 Files Drive Relay` (`p4-files-drive-relay`) 생성, Drive API 활성화, 외부 테스트 동의 화면 생성 및 `jeonbj005@gmail.com` 테스트 사용자 등록 완료.
+- Google Cloud 전용 프로젝트 `P4 Files Drive Relay` (`p4-files-drive-relay`) 생성, Drive API 활성화, 외부 테스트 동의 화면 생성 및 테스트 사용자 등록 완료.
 - 앱 범위로 `drive.file`과 전체 `drive`를 등록. 공개 배포 전에 전체 Drive 범위의 Google 검증 요건을 해결해야 한다.
 - 차량 TV/Limited Input 클라이언트 생성. JSON에서 ID/secret을 로컬 `oauth.properties`로 옮겼으며 `.gitignore` 적용을 확인했다. 비밀값은 Git에 넣지 않는다.
 - Android OAuth 등록은 `com.polestar4.drivefilemanager` + APK SHA-1 `A2:18:83:47:12:EC:30:FE:C4:8E:D5:C4:56:04:8E:FA:E4:9C:2E:3A` 조합이 이미 사용 중이라는 Google 오류로 거부됐다. 현재 계정에서 확인 가능한 기존 프로젝트의 활성/삭제된 클라이언트에는 이 앱 등록이 없었다. 폰 OAuth는 미완료이며 서명 키를 바꿔 우회하지 않는다.
