@@ -1,5 +1,12 @@
 # P4 Files 개발 현황
 
+2026-11-12 · 실제 Automotive 에뮬레이터 및 폰 화면 점검
+
+- 차량 APK v1.48 / versionCode 58을 Android Automotive API 33 AVD `P4FilesAAOS33`에 설치했다. 최초 알림 권한 요청에서 허용한 뒤 `MainActivity`가 포그라운드에 유지되고 달력/목록 화면이 렌더링됐다. 프로세스 크래시는 관찰되지 않았다.
+- DVR `198.18.37.20:80` 연결은 8초 후 실패했고 앱은 오류 대화상자와 상태 문구를 표시했다. 이 AVD에는 차량 DVR 서비스가 없어 실차 DVR 동작을 검증한 것은 아니다. 제공되는 AAOS 시스템 이미지 중 API 32는 없어 API 33으로 점검했다.
+- 폰 APK v1.48 / versionCode 58을 Android 14 API 34 AVD에서 실행했다. `PhoneStatusActivity`가 유지되고 Drive 재인증 안내가 표시됐다. OAuth 값이 비어 있어 Google 로그인을 진행하지 않았으며 차량-폰 데이터 왕복은 미검증이다.
+- 이 점검은 UI 시작/오류 표시 smoke test이며 코드 변경이나 APK 재빌드는 없었다. AAOS 실차, Google Drive 인증·동기화, 차량 데이터 수신은 남은 검증 항목이다.
+
 2026-11-12 · 차량/폰 APK 에뮬레이터 설치 점검
 
 - 차량 APK v1.48을 `CameraAlertSettingsPreview32` 에뮬레이터에 v1.46 위로 설치했고 `MainActivity` 실행을 확인했다. 이 기기는 실제 SDK 31 일반 Android 이미지이며 Automotive feature가 없다. DVR 주소 `198.18.37.20:80` 연결은 8초 후 실패했다.

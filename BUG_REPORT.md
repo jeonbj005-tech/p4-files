@@ -14,6 +14,14 @@
 - 후속 설정 개선: TV OAuth 값은 차량 flavor에만 빌드되도록 분리했고 `oauth.properties.template` 및 README에 같은 Cloud 프로젝트, 테스트 계정, Android package/SHA-1 등록 방법을 기록했다. 두 flavor의 디버그 빌드와 Lint는 통과했지만 OAuth 값은 비어 있다. 차량에서 쓸 APK는 설정을 채운 뒤 versionCode를 올려 다시 빌드해야 한다.
 - 에뮬레이터 점검: 차량 flavor v1.48은 SDK 31 일반 Android AVD에서 실행됐으나 DVR `198.18.37.20:80` 요청이 타임아웃됐다. 폰 flavor v1.48은 SDK 34 AVD에서 시작 화면과 연결 UI 표시를 확인했다. Google 인증은 하지 않았으며, SDK 31 AVD에는 Automotive feature가 없어 AAOS/실차 동작은 확인되지 않았다.
 
+## 2026-11-12 — AAOS API 33 / 폰 API 34 에뮬레이터 재점검
+
+- 차량 APK v1.48 (versionCode 58)을 `P4FilesAAOS33` Android Automotive API 33 AVD에 설치했다. `MainActivity` 실행 후 알림 권한을 허용하자 차량 앱이 포그라운드에 유지됐고 달력/목록 화면이 렌더링됐다. 앱 프로세스 크래시는 관찰되지 않았다.
+- DVR endpoint `198.18.37.20:80` 연결은 약 8초 뒤 실패했다. 앱은 작업 실패 대화상자와 목록 갱신 실패 상태를 표시했다. 이 AVD에는 Polestar DVR 서비스가 없으므로 정상적인 에뮬레이터 한계이며, 이 결과로 실차 DVR 연결 성공/실패를 단정할 수 없다.
+- 차량용 API 32 이미지는 SDK Manager에서 사용할 수 없어 API 33 Automotive 이미지를 사용했다. 기존 API 31 일반 Android 점검과 구분한다.
+- 폰 APK v1.48은 Android 14 API 34 AVD에서 `PhoneStatusActivity`가 포그라운드에 유지되고 “Google Drive 연결을 눌러 다시 인증하세요” 안내를 표시했다. OAuth 설정이 비어 있어 로그인/Drive 조회를 누르지 않았다.
+- 결론: 두 APK의 설치·화면 시작 및 차량 DVR 부재 시 오류 UI는 에뮬레이터에서 확인. Drive 인증, 차량→Drive 기록 전송, 폰 동기화, 실차 DVR 및 차량 설치 정책은 미검증이다.
+
 ## 2026-11-12 — 잠금 해제 뒤 차량 DVR 연결 상태 확인
 
 - 요청: 폴스타 휴대폰 앱에서 차를 잠금 해제했을 때 차량이 깨어나고 대시캠 데이터에 접근 가능한지 시험.
