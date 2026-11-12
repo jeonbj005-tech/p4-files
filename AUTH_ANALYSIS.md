@@ -1,5 +1,16 @@
 # P4 Drive File Manager OAuth 분석 및 수정 보고서
 
+## 현재 v1.48 연동 방식 (2026-11-12)
+
+- 차량은 Google Play services가 있으면 `AuthorizationClient`의 전체 Drive scope를 사용하고, 없으면 TV/Limited Input Device Code Flow로 전환해 `openid email drive.file`을 요청한다.
+- 차량 Device Code Flow는 TV OAuth client ID와 secret이 필요하다. 로컬 `oauth.properties`에서 읽고, 현재 저장소에는 그 파일이 없다.
+- 폰 확인 APK는 `AuthorizationClient`로 `drive.file`만 요청한다. Android OAuth client는 같은 Cloud 프로젝트, `com.polestar4.drivefilemanager`, 설치 APK 서명 SHA-1과 일치해야 한다.
+- 두 APK는 같은 계정으로 각각 로그인한다. 차량이 Drive에 쓴 `P4FilesWakeStatus.json`을 폰이 읽는다. 이 통신은 영상/사진을 전송하지 않는다.
+- 클라이언트 값은 `vehicle` flavor에만 빌드된다. `phone` APK에는 TV client ID/secret을 넣지 않는다. 차량 APK에 포함되는 client secret도 배포 앱에서 추출할 수 있으므로 기밀로 보호되는 값은 아니다.
+- 같은 Cloud 프로젝트 안의 여러 OAuth client는 같은 앱의 클라이언트로 취급될 수 있고, `drive.file`은 그 앱이 만들었거나 사용자에게 앱 접근을 허용받은 파일만 보여준다. 실제 차량-폰 왕복은 실기기에서 확인해야 한다.
+
+## 이전 v1.7 분석 (당시 기록)
+
 ## 원인
 
 - PoleSight의 OAuth 자격 증명은 다른 앱/프로젝트용이므로 재사용할 수 없다.

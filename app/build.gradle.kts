@@ -14,12 +14,17 @@ android {
     defaultConfig { applicationId = "com.polestar4.drivefilemanager"; minSdk = 26; targetSdk = 35; versionCode = 58; versionName = "1.48"
         buildConfigField("String", "OAUTH_CLIENT_ID", "\"\"")
         buildConfigField("String", "OAUTH_CLIENT_SECRET", "\"\"")
-        buildConfigField("String", "TV_OAUTH_CLIENT_ID", quotedBuildValue("clientId"))
-        buildConfigField("String", "TV_OAUTH_CLIENT_SECRET", quotedBuildValue("clientSecret"))
+        buildConfigField("String", "TV_OAUTH_CLIENT_ID", "\"\"")
+        buildConfigField("String", "TV_OAUTH_CLIENT_SECRET", "\"\"")
     }
     flavorDimensions += "device"
     productFlavors {
-        create("vehicle") { dimension = "device"; manifestPlaceholders["appLabel"] = "P4 Files 차량" }
+        create("vehicle") {
+            dimension = "device"
+            manifestPlaceholders["appLabel"] = "P4 Files 차량"
+            buildConfigField("String", "TV_OAUTH_CLIENT_ID", quotedBuildValue("clientId"))
+            buildConfigField("String", "TV_OAUTH_CLIENT_SECRET", quotedBuildValue("clientSecret"))
+        }
         create("phone") { dimension = "device"; manifestPlaceholders["appLabel"] = "P4 Files 확인" }
     }
     buildFeatures { buildConfig = true }

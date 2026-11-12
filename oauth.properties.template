@@ -1,3 +1,9 @@
-# Copy this file to oauth.properties and fill in your own Google Cloud OAuth client.
-# Create it as: TVs and Limited Input devices.
+# Copy to oauth.properties in the repository root. Never commit that local file.
+# Create this client in the SAME Google Cloud project as the phone Android OAuth client.
+# Google Cloud Console > Google Auth Platform > Clients > Create client:
+#   Application type: TVs and Limited Input devices
+# Enable Google Drive API in that project. Add drive.file to the consent screen.
+# This client is used only by the vehicle APK; the phone APK receives empty values.
+# Note: distributed device apps cannot keep a client secret confidential.
 clientId=YOUR_CLIENT_ID.apps.googleusercontent.com
+clientSecret=YOUR_CLIENT_SECRET

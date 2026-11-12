@@ -11,6 +11,7 @@
 - 차량 APK: `releases/P4-Files-v1.48.apk`, 8,098,511 bytes, SHA-256 `3230C6D0C233BDC45A760362A6B40A5DA44106ED100B3B6CC6005111A3847167`.
 - 폰 APK: `releases/P4-Files-phone-v1.48.apk`, 8,103,395 bytes, SHA-256 `A656239BB88D5E287F1E89CDA33A618367CCE011478A2C9F00D159CE06B9D4AC`.
 - 배포 상태: 테스트용 빌드 산출물. OAuth 설정 전이므로 latest update manifest는 v1.47 유지; 차량-폰 동기화 및 실차 동작 미검증.
+- 후속 설정 개선: TV OAuth 값은 차량 flavor에만 빌드되도록 분리했고 `oauth.properties.template` 및 README에 같은 Cloud 프로젝트, 테스트 계정, Android package/SHA-1 등록 방법을 기록했다. 두 flavor의 디버그 빌드와 Lint는 통과했지만 OAuth 값은 비어 있다. 차량에서 쓸 APK는 설정을 채운 뒤 versionCode를 올려 다시 빌드해야 한다.
 
 ## 2026-11-12 — 잠금 해제 뒤 차량 DVR 연결 상태 확인
 

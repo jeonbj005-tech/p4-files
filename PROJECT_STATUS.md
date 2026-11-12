@@ -1,5 +1,13 @@
 # P4 Files 개발 현황
 
+2026-11-12 · 차량·폰 Drive 연동 설정 점검
+
+- `TV_OAUTH_CLIENT_ID/SECRET`을 차량 flavor에만 주입하도록 Gradle 설정을 분리했다. 폰 APK에는 차량 OAuth 자격 증명이 포함되지 않는다.
+- OAuth 템플릿에 TV OAuth client의 두 값을 명시하고, 같은 Google Cloud 프로젝트·Drive API·`drive.file`·폰 패키지/서명 SHA-1 등록 절차를 README에 추가했다.
+- 확인: v1.48 폰 APK 서명 SHA-1 `A2:18:83:47:12:EC:30:FE:C4:8E:D5:C4:56:04:8E:FA:E4:9C:2E:3A` (apksigner 확인).
+- 확인: 두 flavor `lint`와 `assemble` 성공(현재 비어 있는 OAuth 설정으로 빌드). 실제 연결용 APK는 OAuth 설정을 채운 뒤 새 versionCode로 다시 빌드해야 한다.
+- 미완료: 로컬 `oauth.properties` 부재. Google Cloud OAuth 클라이언트 구성, 실제 APK 재빌드, Drive 왕복 및 차량 로그인은 미검증.
+
 2026-11-12 · v1.48 / versionCode 58 — 차량용·폰용 APK 분리
 
 - 차량 APK: `releases/P4-Files-v1.48.apk`, 8,098,511 bytes, SHA-256 `3230C6D0C233BDC45A760362A6B40A5DA44106ED100B3B6CC6005111A3847167`, 시작 화면 `MainActivity`.
