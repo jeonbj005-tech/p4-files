@@ -11,6 +11,7 @@
 - 제한: 폰 앱은 현재도 상태 JSON만 읽으며 DVR 영상/목록을 폰으로 보내지 않는다. 업로드 완주, 속도 향상, 현재 계정의 차량-폰 왕복은 실차 미검증.
 - 배포: v1.58 APK는 로컬 빌드 산출물이다. 공개 릴리스와 releases/update.json은 갱신하지 않았다. 차량 APK에는 로컬 OAuth 설정값이 포함되므로 공개 업로드 전 별도 검토가 필요하다.
 - 에뮬레이터 재현: AAOS 13 차량 및 Android 14 폰에 v1.58 설치. 폰은 Drive 상태 파일을 읽었지만 00:28:55의 오래된 기록을 표시했고, 차량 앱은 Drive 미연결 상태였다. 차량 OAuth 승인이 없어 새 상태 왕복은 아직 미검증이다. 현재 깨우기 테스트는 5분만 기록을 게시한다.
+- 새 PC 이식: Gradle Wrapper 8.14.3 추가, README에 JDK/SDK·OAuth 설정·빌드·debug 서명키 이전 절차를 기록했다. wrapper bootstrap 및 두 flavor의 Lint/assemble 통과. OAuth 값·debug keystore·APK는 계속 Git 제외.
 
 2026-11-13 · Polestar 4 디스플레이 기준화 및 반응형 UI / v1.57
 

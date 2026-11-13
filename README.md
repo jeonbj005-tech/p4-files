@@ -1,12 +1,11 @@
-# P4 Files 1.56
+# P4 Files 1.58
 
 차량 APK는 Polestar 4에서 대시캠과 로컬/USB·Google Drive 파일 관리를 제공하고, 폰 APK는 차량 DVR 상태 확인만 제공합니다.
 
 ## APK 산출물
 
-- `releases/P4-Files-v1.56.apk`: 차량용 대시캠·파일 매니저와 5분 DVR 상태 확인 기능
-- `releases/P4-Files-phone-v1.56.apk`: 휴대폰에서 차량 상태 기록만 확인하는 앱
-- GitHub Release: [P4 Files v1.56](https://github.com/jeonbj005-tech/p4-files/releases/tag/v1.56). latest manifest·APK 해시가 맞고, v1.55 AAOS 에뮬레이터에서 v1.56 업데이트 안내가 뜨는 것까지 확인했습니다.
+- 공개 최신 GitHub Release는 [P4 Files v1.56](https://github.com/jeonbj005-tech/p4-files/releases/tag/v1.56)이다.
+- 현재 `main` 소스는 v1.58 / versionCode 68이며 차량·폰 product flavor를 모두 포함한다. v1.58 APK는 빌드 산출물이라 Git에 넣지 않았고 공개 Release도 만들지 않았다.
 - 두 APK는 차량과 휴대폰에 각각 설치합니다. 앱 ID가 달라 한 기기에도 함께 설치할 수 있습니다.
 - 휴대폰은 차량과 같은 Google 계정으로 Drive의 앱 파일 범위(`drive.file`)에 연결해 상태 JSON만 읽습니다. 영상·사진·파일목록은 전송하지 않습니다.
 - **인증:** 차량용 TV OAuth 값은 로컬 `oauth.properties`에서 읽으며 Git에는 포함하지 않습니다. 폰과 차량은 같은 Cloud 프로젝트와 Google 계정으로 연결해야 합니다.
@@ -62,11 +61,32 @@ v1.13에서는 차량 2분할 저장소와 일반 로컬 폴더에 정렬·새�
 
 - 차량 applicationId: `com.polestar4.drivefilemanager`
 - 폰 applicationId: `com.polestar4.drivefilemanager.phone` (OAuth 패키지 중복을 피하려고 폰 flavor만 분리)
-- versionName: `1.55`, versionCode `65`
+- versionName: `1.58`, versionCode `68`
 - minSdk 26 / targetSdk 35
 - `assembleVehicleDebug` → 차량 APK
 - `assemblePhoneDebug` → 휴대폰 상태 확인 APK
 - 각 flavor의 Lint를 별도로 실행합니다.
+
+## 새 PC에서 이어서 빌드
+
+1. Git, JDK 17 이상, Android SDK Platform 35와 Build Tools 35.0.0을 설치합니다. 저장소에 포함된 Gradle Wrapper가 Gradle 8.14.3을 자동으로 받습니다.
+2. 저장소를 복제하고 폴더로 이동합니다:
+
+   ```powershell
+   git clone https://github.com/jeonbj005-tech/p4-files.git
+   cd p4-files
+   ```
+
+3. 차량 Google Drive 인증도 빌드하려면 `oauth.properties.template`을 `oauth.properties`로 복사하고 Google Cloud의 차량 client ID와 client secret을 채웁니다. 이 로컬 파일은 Git에서 제외됩니다. 값을 저장소에 커밋하지 마세요.
+4. 두 앱을 빌드하고 Lint를 확인합니다:
+
+   ```powershell
+   .\gradlew.bat lintVehicleDebug lintPhoneDebug assembleVehicleDebug assemblePhoneDebug
+   ```
+
+   차량 APK는 `app/build/outputs/apk/vehicle/debug/app-vehicle-debug.apk`, 폰 APK는 `app/build/outputs/apk/phone/debug/app-phone-debug.apk`에 생성됩니다.
+
+기존 설치 앱 위에 새 PC에서 만든 debug APK를 업데이트하려면 기존 PC의 `%USERPROFILE%\.android\debug.keystore`도 안전한 방법으로 옮겨야 합니다. 이 서명 키와 `oauth.properties`는 Git에 올리지 않습니다. 서명 키가 다르면 Android가 기존 앱 위에 업데이트 설치를 거부하므로, 새 키를 쓸 때는 기존 앱을 제거한 뒤 설치해야 합니다.
 
 ## 차량 ↔ 폰 상태 연결 설정
 
