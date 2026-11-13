@@ -14,6 +14,7 @@ class DriveApi(private val ctx: Context) {
         const val DRIVE_SCOPE = "https://www.googleapis.com/auth/drive"
         const val VEHICLE_SCOPE = "https://www.googleapis.com/auth/drive.file"
         private const val SCOPE_VERSION = 3
+        private const val UPLOAD_CHUNK_SIZE = 8 * 1024 * 1024
     }
     data class DriveFile(val id:String,val name:String,val mime:String,val size:Long,val modified:Long=0L) {
         val folder get() = mime == "application/vnd.google-apps.folder"
@@ -22,6 +23,7 @@ class DriveApi(private val ctx: Context) {
     val connected get() = prefs.getInt("scope_version",0)==SCOPE_VERSION &&
         if(vehicleMode) !prefs.getString("refresh",null).isNullOrBlank()
         else prefs.contains("access") && prefs.getLong("expiry",0)>System.currentTimeMillis()+60000
+    val hasCachedAccessToken get() = !prefs.getString("access",null).isNullOrBlank()
     val vehicleMode get() = prefs.getString("auth_mode","")=="VEHICLE_DEVICE_CODE"
     fun acceptAccessToken(value:String,scope:String=DRIVE_SCOPE){prefs.edit().putString("access",value).putLong("expiry",System.currentTimeMillis()+50*60*1000).putInt("scope_version",SCOPE_VERSION).putString("granted_scope",scope).putString("auth_mode","PLAY_SERVICES").remove("refresh").commit()}
     fun acceptVehicleTokens(access:String,refresh:String,expiresIn:Long,scope:String){
@@ -82,6 +84,7 @@ class DriveApi(private val ctx: Context) {
         AuthDiagnostics.event("TOKEN_EXCHANGE","SUCCESS","VEHICLE_REFRESH")
     }
     fun logout(){prefs.edit().clear().commit()}
+    fun markAccessTokenExpired(){prefs.edit().putLong("expiry",0).commit()}
     private fun request(url:String,method:String="GET")=connection(url,method).apply{setRequestProperty("Authorization","Bearer ${token()}");AuthDiagnostics.event("DRIVE_API_REQUEST","START",method)}
     private fun driveFile(x:JSONObject):DriveFile{val modified=try{Instant.parse(x.optString("modifiedTime")).toEpochMilli()}catch(_:Exception){0L};return DriveFile(x.getString("id"),x.getString("name"),x.getString("mimeType"),x.optLong("size"),modified)}
     fun listFolder(parent:String):List<DriveFile>{
@@ -174,7 +177,7 @@ class DriveApi(private val ctx: Context) {
         }
         if(knownLength&&offset>length)throw IOException("Drive 업로드 위치가 파일 크기를 초과했습니다.")
         val input=try{openSource(offset)}catch(e:IOException){throw uploadFailure("차량 DVR 원본 연결",e)}?:throw IOException("파일을 열 수 없습니다.")
-        input.use{raw->val stream=PushbackInputStream(raw,1);progress(offset);val chunk=ByteArray(4*1024*1024)
+        input.use{raw->val stream=PushbackInputStream(raw,1);progress(offset);val chunk=ByteArray(UPLOAD_CHUNK_SIZE)
             while(true){
                 val wanted=if(knownLength)minOf(chunk.size.toLong(),length-offset).toInt() else chunk.size
                 if(wanted==0)throw IOException("Drive 업로드가 완료되지 않았습니다.")
@@ -187,6 +190,7 @@ class DriveApi(private val ctx: Context) {
                 while(accepted<count){
                     val start=offset+accepted;val end=offset+count-1;val c=request(session,"PUT")
                     try{
+                        c.readTimeout=180_000
                         c.doOutput=true;c.setFixedLengthStreamingMode(count-accepted);c.setRequestProperty("Content-Type",mime);c.setRequestProperty("Content-Range",driveUploadContentRange(start,end+1,length,last))
                         try{c.outputStream.use{it.write(chunk,accepted,count-accepted)}}catch(e:IOException){throw uploadFailure("Google Drive 청크 전송",e)}
                         val code=try{c.responseCode}catch(e:IOException){throw uploadFailure("Google Drive 응답 수신",e)}

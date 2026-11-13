@@ -1,5 +1,16 @@
 # P4 Files 개발 현황
 
+2026-11-13 · 대용량 업로드와 폰 상태 동기화 보강 / v1.58
+
+- Drive resumable 업로드 청크를 4MiB에서 8MiB로 변경해 280MiB 기준 요청 수를 약 70회에서 35회로 줄였다. Drive 청크 응답 대기 180초, DVR 원본 스트림 읽기 대기 120초.
+- 폰 앱은 Drive 상태 파일 ID를 캐시하고, ID 접근이 무효면 다시 검색한다. 기존 access token이 만료/거부되면 폰 OAuth 재인증을 1회 시도한다.
+- 폰의 제목 상태를 `차량 기록 수신` 또는 `마지막 차량 기록`으로 분리해 표시하며, DVR 응답 오류는 연결 로그에 남긴다. 과거 화면의 로그는 Drive relay 수신이 한 번 성공했지만 DVR probe가 시간 초과된 증거다.
+- DVR 백그라운드 probe 연결/읽기 제한을 10초로 늘렸다.
+- 확인: `lintVehicleDebug`, `lintPhoneDebug`, `assembleVehicleDebug`, `assemblePhoneDebug` 통과. 이번 변경의 자동 테스트와 에뮬레이터 OAuth 왕복은 실행하지 않았다.
+- 차량 APK `releases/P4-Files-v1.58.apk`: 8,105,851 bytes, SHA-256 `91F32C0D7460C3EFDBE87DA6D32EDCE98BA170FA23F0AE69CD58CBB7CC497357`. 폰 APK `releases/P4-Files-phone-v1.58.apk`: 8,113,775 bytes, SHA-256 `1E50F0439C278C2F96A6C222EAF7FCB8B46C2ED8240C3E486A7D2E51E661F289`. 두 APK 서명 SHA-256은 기존 `7D48CDBF4BD2898796294E6AB8A9626353375AE6A43EB98A661207079DA9B756`와 일치하며 패키지·versionCode 68·minSdk 26을 확인했다.
+- 제한: 폰 앱은 현재도 상태 JSON만 읽으며 DVR 영상/목록을 폰으로 보내지 않는다. 업로드 완주, 속도 향상, 현재 계정의 차량-폰 왕복은 실차 미검증.
+- 배포: v1.58 APK는 로컬 빌드 산출물이다. 공개 릴리스와 releases/update.json은 갱신하지 않았다. 차량 APK에는 로컬 OAuth 설정값이 포함되므로 공개 업로드 전 별도 검토가 필요하다.
+
 2026-11-13 · Polestar 4 디스플레이 기준화 및 반응형 UI / v1.57
 
 - 초기 AVD 캡처에는 P4 Files 대신 P4 Sound가 표시돼 있었고, 기존 MainActivity는 방향·화면 크기 변경을 Manifest에서 받으면서 현재 화면을 다시 구성하지 않았다. UI는 Kotlin 네이티브 View이며 고정 스마트폰 폭은 찾지 못했다.

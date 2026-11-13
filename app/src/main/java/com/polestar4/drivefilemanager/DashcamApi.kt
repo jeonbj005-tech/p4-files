@@ -70,7 +70,7 @@ class DashcamApi {
 
     /** Read only: used by the background wake probe without changing DVR mode or listing files. */
     fun probeRecordingState():String{
-        val c=connection(BASE+STATUS).apply{connectTimeout=2_500;readTimeout=2_500}
+        val c=connection(BASE+STATUS).apply{connectTimeout=10_000;readTimeout=10_000}
         return try{JSONObject(response(c)).optString("recording").ifBlank{"unknown"}}finally{c.disconnect()}
     }
 
@@ -160,7 +160,7 @@ class DashcamApi {
     }
 
     fun openStream(url:String,offset:Long=0):InputStream{
-        val c=connection(url)
+        val c=connection(url).apply{readTimeout=120_000}
         if(offset>0)c.setRequestProperty("Range","bytes=$offset-")
         try{
             val code=c.responseCode

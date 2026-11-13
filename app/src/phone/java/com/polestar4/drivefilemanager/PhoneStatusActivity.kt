@@ -33,6 +33,9 @@ class PhoneStatusActivity : Activity() {
     private val executor = Executors.newSingleThreadExecutor()
     private val handler = Handler(Looper.getMainLooper())
     private val refreshing = AtomicBoolean(false)
+    private val authorizing = AtomicBoolean(false)
+    private var renewalAttempted = false
+    private val linkPrefs by lazy { getSharedPreferences("vehicle_link", MODE_PRIVATE) }
     private lateinit var state: TextView
     private lateinit var log: TextView
     private val bg = Color.rgb(8, 12, 20)
@@ -46,7 +49,13 @@ class PhoneStatusActivity : Activity() {
 
     private val poll = object : Runnable {
         override fun run() {
-            if (api.connected) refresh() else state.text = "Google Drive 연결을 눌러 다시 인증하세요."
+            if (api.connected) {
+                renewalAttempted = false
+                refresh()
+            } else if (api.hasCachedAccessToken && !renewalAttempted) {
+                renewalAttempted = true
+                authorize()
+            } else state.text = "Google Drive 연결을 눌러 인증하거나 세션을 갱신하세요."
             handler.postDelayed(this, 15_000)
         }
     }
@@ -114,8 +123,8 @@ class PhoneStatusActivity : Activity() {
         root.addView(ScrollView(this).apply { addView(log); isFillViewport = true; clipToPadding = false },
             LinearLayout.LayoutParams(-1, 0, 1f))
         val actions = LinearLayout(this).apply { gravity = Gravity.CENTER; setPadding(0, dp(14), 0, 0) }
-        actions.addView(actionButton("Drive 연결", true) { login() }, LinearLayout.LayoutParams(0, dp(56), 1f).apply { rightMargin = dp(8) })
-        actions.addView(actionButton("새로고침") { if (api.connected) refresh() else login() }, LinearLayout.LayoutParams(0, dp(56), 1f))
+        actions.addView(actionButton("Drive 연결", true) { renewalAttempted = false; authorize() }, LinearLayout.LayoutParams(0, dp(56), 1f).apply { rightMargin = dp(8) })
+        actions.addView(actionButton("새로고침") { if (api.connected) refresh() else { renewalAttempted = false; authorize() } }, LinearLayout.LayoutParams(0, dp(56), 1f))
         root.addView(actions)
         setContentView(root)
         if (api.connected) refresh()
@@ -135,7 +144,9 @@ class PhoneStatusActivity : Activity() {
         setOnClickListener { action() }
     }
 
-    private fun login() {
+    private fun authorize() {
+        if (!authorizing.compareAndSet(false, true)) return
+        state.text = "Google Drive 세션 확인 중…"
         val request = AuthorizationRequest.builder()
             .setRequestedScopes(listOf(Scope(DriveApi.VEHICLE_SCOPE)))
             .build()
@@ -144,10 +155,14 @@ class PhoneStatusActivity : Activity() {
                 if (result.hasResolution()) try {
                     startIntentSenderForResult(result.pendingIntent!!.intentSender, 85, null, 0, 0, 0)
                 } catch (_: Exception) {
+                    authorizing.set(false)
                     state.text = "Google 인증 화면을 열 수 없습니다."
-                } else finishLogin(result)
+                } else {
+                    authorizing.set(false)
+                    finishLogin(result)
+                }
             }
-            .addOnFailureListener { state.text = "Google 인증 실패 · ${it.javaClass.simpleName}" }
+            .addOnFailureListener { authorizing.set(false); state.text = "Google 인증 실패 · ${it.javaClass.simpleName}" }
     }
 
     private fun finishLogin(result: AuthorizationResult) {
@@ -165,12 +180,15 @@ class PhoneStatusActivity : Activity() {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode != 85) return
         if (resultCode != RESULT_OK || data == null) {
+            authorizing.set(false)
             state.text = "Google Drive 연결이 취소되었습니다."
             return
         }
         try {
+            authorizing.set(false)
             finishLogin(auth.getAuthorizationResultFromIntent(data))
         } catch (error: Exception) {
+            authorizing.set(false)
             state.text = "Google 인증 실패 · ${error.javaClass.simpleName}"
         }
     }
@@ -180,21 +198,38 @@ class PhoneStatusActivity : Activity() {
         state.text = "Google Drive에서 차량 상태 확인 중…"
         executor.execute {
             try {
-                val file = api.findWakeStatusFile()
-                    ?: throw IllegalStateException("차량 상태 파일이 아직 없습니다")
-                if (file.size !in 1..65_536) throw IllegalStateException("상태 파일 크기가 올바르지 않습니다")
-                val json = JSONObject(api.readTextFile(file.id))
+                var content: String? = null
+                val savedId = linkPrefs.getString("status_file_id", null)
+                if (!savedId.isNullOrBlank()) try {
+                    content = api.readTextFile(savedId)
+                } catch (error: AuthFailure) {
+                    if (isStaleWakeStatusFailure(error.reason)) linkPrefs.edit().remove("status_file_id").apply() else throw error
+                }
+                if (content == null) {
+                    val file = api.findWakeStatusFile()
+                        ?: throw IllegalStateException("차량 상태 파일이 아직 없습니다")
+                    if (file.size !in 1..65_536) throw IllegalStateException("상태 파일 크기가 올바르지 않습니다")
+                    content = api.readTextFile(file.id)
+                    linkPrefs.edit().putString("status_file_id", file.id).apply()
+                }
+                val statusContent = content ?: throw IllegalStateException("차량 상태 파일이 아직 없습니다")
+                if (statusContent.toByteArray(Charsets.UTF_8).size !in 1..65_536) throw IllegalStateException("상태 파일 크기가 올바르지 않습니다")
+                val json = JSONObject(statusContent)
                 val updated = json.optLong("updatedAt")
                 val time = if (updated > 0) SimpleDateFormat("M월 d일 HH:mm:ss", Locale.KOREA).format(Date(updated)) else "시간 미상"
                 val stale = updated <= 0 || System.currentTimeMillis() - updated > 90_000
                 val entries = json.optJSONArray("logs")
                 val lines = if (entries == null) emptyList() else (0 until entries.length()).map { entries.optString(it) }
                 runOnUiThread {
-                    state.text = "${if (stale) "마지막 응답" else json.optString("status", "상태 미상")} · $time"
+                    state.text = "${if (stale) "마지막 차량 기록" else "차량 기록 수신"} · $time"
                     log.text = lines.takeLast(60).joinToString("\n").ifBlank { "아직 기록이 없습니다." }
                 }
             } catch (error: Exception) {
                 runOnUiThread {
+                    if (error is AuthFailure && error.code == "TOKEN_ERROR") {
+                        api.markAccessTokenExpired()
+                        renewalAttempted = false
+                    }
                     state.text = if (error is IllegalStateException && error.message?.contains("아직") == true)
                         "차량 기록을 기다리는 중" else {
                         val detail=(error as? AuthFailure)?.let{"${it.code} · ${it.message}"}?:error.javaClass.simpleName
