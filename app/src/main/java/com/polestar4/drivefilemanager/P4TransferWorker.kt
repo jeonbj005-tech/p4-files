@@ -35,11 +35,23 @@ class P4TransferWorker(ctx:Context,params:WorkerParameters):Worker(ctx,params){
                 if(!temp.renameTo(out)){temp.inputStream().use{input->out.outputStream().use{input.copyTo(it)}};temp.delete()}
             }
             TransferStore.update(applicationContext,id){it.copy(status="SUCCESS",progress=if(it.size>0)it.size else it.progress)};Result.success()
-        }catch(e:InterruptedIOException){if(TransferStore.get(applicationContext,id)?.status=="RUNNING")TransferStore.update(applicationContext,id){it.copy(status="PAUSED")};Result.success()
+        }catch(e:InterruptedIOException){
+            val current=TransferStore.get(applicationContext,id)
+            if(isStopped||current?.status in setOf("PAUSED","CANCELED")){
+                if(current?.status=="RUNNING")TransferStore.update(applicationContext,id){it.copy(status="PAUSED")}
+                Result.success()
+            }else retryOrFail(id,e)
         }catch(e:AuthFailure){TransferStore.update(applicationContext,id){it.copy(status="FAILED",error="${e.code}: ${e.message}")};Result.failure()
-        }catch(e:Exception){TransferStore.update(applicationContext,id){it.copy(status="FAILED",error=e.message?:e.javaClass.simpleName)};if(runAttemptCount<4)Result.retry() else Result.failure()}
+        }catch(e:Exception){retryOrFail(id,e)}
     }
-    private fun checkpoint(id:String,task:TransferTask,done:Long){if(isStopped)throw InterruptedIOException("transfer paused");TransferStore.update(applicationContext,id){it.copy(progress=done,status="RUNNING")};setProgressAsync(workDataOf("bytes" to done,"total" to task.size));setForegroundAsync(foreground(task,done))}
+    private fun retryOrFail(id:String,error:Exception):Result{
+        val current=TransferStore.get(applicationContext,id)
+        if(isStopped||current?.status in setOf("PAUSED","CANCELED"))return Result.success()
+        val retry=shouldRetryTransfer(error,runAttemptCount)
+        TransferStore.update(applicationContext,id){it.copy(status=if(retry)"RETRYING" else "FAILED",error=error.message?:error.javaClass.simpleName)}
+        return if(retry)Result.retry() else Result.failure()
+    }
+    private fun checkpoint(id:String,task:TransferTask,done:Long){if(isStopped)throw InterruptedIOException("transfer paused");TransferStore.update(applicationContext,id){it.copy(progress=done,status="RUNNING",error="")};setProgressAsync(workDataOf("bytes" to done,"total" to task.size));setForegroundAsync(foreground(task,done))}
     private fun foreground(task:TransferTask,done:Long):ForegroundInfo{
         if(Build.VERSION.SDK_INT>=26)(applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(NotificationChannel(CHANNEL,"P4 파일 전송",NotificationManager.IMPORTANCE_LOW))
         val percent=if(task.size>0)((done*100/task.size).coerceIn(0,100)).toInt() else 0

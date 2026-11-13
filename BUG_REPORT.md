@@ -1,5 +1,13 @@
 # P4 Files 버그 리포트
 
+## 2026-11-13 — 실차 DVR 업로드가 중간에 끊김
+
+- 사용자 화면에서 약 18% 부근 실패를 보고했고, 후속 사진에는 `RUNNING · 36% · unexpected end of stream`가 보였다. 같은 날 에뮬레이터의 280MiB 합성 파일은 Drive 업로드에 성공했으므로, 크기 제한이나 모든 Drive 업로드의 실패로 단정할 수 없다.
+- **확인된 코드 결함:** `SocketTimeoutException`은 `InterruptedIOException` 하위 형식인데 기존 Worker가 이를 사용자의 일시정지로 처리해 자동 복구를 끝낼 수 있었다. 다른 I/O 오류도 Worker가 먼저 `FAILED`로 표시하면서 WorkManager 재시도를 예약해, 대기 중 UI에 수동 재시작을 노출했다. 재시작은 같은 DVR/Drive 업로드 task ID에 대해 고유 작업으로 제한되지 않았다.
+- **수정(v1.55):** 명시적인 취소·일시정지만 `PAUSED`/`CANCELED`로 끝낸다. I/O 실패는 기존 Drive resumable session을 조회해 서버가 승인한 위치부터 최대 8회 재시도하고, 대기 중 `재시도 대기`를 표시한다. task별 unique work와 재시도 상태 액션으로 중복 재시작을 막고, 바이트가 더 진행되면 지난 오류를 지운다.
+- **미확정:** `unexpected end of stream`이 DVR HTTP 원본 읽기 또는 Drive 요청 중 어느 쪽에서 발생했는지는 현재 로그에 단계 정보가 없어 확정하지 못했다. 새 APK의 실차 DVR Range 지원, 녹화 영향 및 280MB 실영상 완주도 아직 재검증하지 않았다.
+- 자동 테스트와 빌드 결과는 `PROJECT_STATUS.md`의 v1.55 항목에 기록한다. 차량 에뮬레이터에는 DVR 서비스를 제공하지 않으므로 실차 검증을 대신하지 않는다.
+
 ## 2026-11-13 — 폰/차량 상태 미연동 및 280MB DVR 업로드 실패 진단
 
 ### 코드에서 확인된 결함과 수정

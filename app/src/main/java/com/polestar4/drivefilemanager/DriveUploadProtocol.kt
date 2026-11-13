@@ -4,6 +4,10 @@ import java.io.IOException
 import java.util.Locale
 
 internal enum class ChunkProgress { NONE, ADVANCED }
+internal const val MAX_TRANSFER_RETRIES = 8
+
+internal fun shouldRetryTransfer(error:Throwable,runAttemptCount:Int)=
+    error is IOException && runAttemptCount<MAX_TRANSFER_RETRIES
 
 internal fun driveUploadContentRange(start:Long,endExclusive:Long,totalLength:Long,last:Boolean):String {
     require(start>=0&&endExclusive>start)

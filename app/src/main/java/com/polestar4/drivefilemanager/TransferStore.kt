@@ -41,27 +41,28 @@ object TransferStore {
     fun get(ctx:Context,id:String)=list(ctx).firstOrNull{it.id==id}
     @Synchronized fun put(ctx:Context,task:TransferTask){save(ctx,list(ctx).filterNot{it.id==task.id}+task)}
     @Synchronized fun update(ctx:Context,id:String,change:(TransferTask)->TransferTask){val all=list(ctx);save(ctx,all.map{if(it.id==id)change(it) else it})}
-    @Synchronized fun clearFinished(ctx:Context){save(ctx,list(ctx).filter{it.status in setOf("QUEUED","RUNNING","PAUSED")})}
+    @Synchronized fun clearFinished(ctx:Context){save(ctx,list(ctx).filter{it.status in setOf("QUEUED","RUNNING","RETRYING","PAUSED")})}
 }
 
 object TransferManager {
     const val TAG="P4_TRANSFER"
+    private fun uniqueName(id:String)="p4-transfer-$id"
     private fun request(taskId:String)=OneTimeWorkRequestBuilder<P4TransferWorker>()
         .setInputData(workDataOf("taskId" to taskId)).addTag(TAG)
         .setBackoffCriteria(BackoffPolicy.EXPONENTIAL,15,TimeUnit.SECONDS).build()
     private fun enqueue(ctx:Context,kind:String,source:String,name:String,mime:String,parent:String,size:Long):String{
         val id=UUID.randomUUID().toString();val req=request(id)
         TransferStore.put(ctx,TransferTask(id,req.id.toString(),kind,name,source,mime,parent,"",size,0,"QUEUED","",System.currentTimeMillis()))
-        WorkManager.getInstance(ctx).enqueue(req);return id
+        WorkManager.getInstance(ctx).enqueueUniqueWork(uniqueName(id),ExistingWorkPolicy.KEEP,req);return id
     }
     fun enqueueUpload(ctx:Context,source:String,name:String,mime:String,parent:String,size:Long)=enqueue(ctx,"UPLOAD",source,name,mime,parent,size)
     fun enqueueDashcamUpload(ctx:Context,source:String,name:String,mime:String,parent:String,size:Long)=enqueue(ctx,"DVR_UPLOAD",source,name,mime,parent,size)
     fun enqueueDownload(ctx:Context,remoteId:String,name:String,mime:String,size:Long):String{
         val id=UUID.randomUUID().toString();val req=request(id)
         TransferStore.put(ctx,TransferTask(id,req.id.toString(),"DOWNLOAD",name,"",mime,"root",remoteId,size,0,"QUEUED","",System.currentTimeMillis()))
-        WorkManager.getInstance(ctx).enqueue(req);return id
+        WorkManager.getInstance(ctx).enqueueUniqueWork(uniqueName(id),ExistingWorkPolicy.KEEP,req);return id
     }
     fun pause(ctx:Context,id:String){TransferStore.get(ctx,id)?.let{if(it.workId.isNotBlank())WorkManager.getInstance(ctx).cancelWorkById(UUID.fromString(it.workId))};TransferStore.update(ctx,id){it.copy(status="PAUSED")}}
     fun cancel(ctx:Context,id:String){TransferStore.get(ctx,id)?.let{if(it.workId.isNotBlank())WorkManager.getInstance(ctx).cancelWorkById(UUID.fromString(it.workId))};TransferStore.update(ctx,id){it.copy(status="CANCELED")}}
-    fun resume(ctx:Context,id:String){val task=TransferStore.get(ctx,id)?:return;val req=request(id);TransferStore.put(ctx,task.copy(workId=req.id.toString(),status="QUEUED",error=""));WorkManager.getInstance(ctx).enqueue(req)}
+    fun resume(ctx:Context,id:String){val task=TransferStore.get(ctx,id)?:return;if(task.status !in setOf("PAUSED","FAILED","CANCELED"))return;val req=request(id);TransferStore.put(ctx,task.copy(workId=req.id.toString(),status="QUEUED",error=""));WorkManager.getInstance(ctx).enqueueUniqueWork(uniqueName(id),ExistingWorkPolicy.REPLACE,req)}
 }

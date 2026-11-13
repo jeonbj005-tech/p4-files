@@ -1,5 +1,13 @@
 # P4 Files 개발 현황
 
+2026-11-13 · DVR 업로드 스트림 재시도 / v1.55
+
+- 사용자 실차 화면: 같은 DVR 영상이 업로드 중 18% 부근에서 실패했다고 보고했고, 다음 사진에는 36% `RUNNING`과 `unexpected end of stream` 문구가 함께 보인다. 에뮬레이터의 280MiB 합성 파일은 Drive 업로드에 성공했으나 실차 DVR 원본 스트림은 이와 별도다.
+- 코드에서 확인: `InterruptedIOException`을 사용자 일시정지와 동일 처리해 SocketTimeout을 `PAUSED`로 끝낼 수 있었다. 다른 I/O 실패는 WorkManager 재시도 중에도 큐에 `FAILED`를 써 수동 재시도를 노출했고, 동일 task ID의 재시도 작업을 고유 작업으로 제한하지 않았다.
+- 수정: timeout/스트림 I/O는 최대 8회 자동 재시도하며 저장된 Drive 세션의 승인 위치에서 이어간다. 재시도 대기 중은 `재시도 대기`로 표시하고 수동 재시작을 막는다. task별 고유 WorkManager 작업으로 중복 실행을 차단하며, 업로드가 진행되면 이전 오류 문구를 지운다.
+- 검증 완료: 차량·폰 각각 21개 단위 테스트, `lintVehicleDebug`, `lintPhoneDebug`, `assembleVehicleDebug`, `assemblePhoneDebug` 통과. v1.55 / versionCode 65 두 APK를 AAOS API 33 및 Android API 34 에뮬레이터에 설치·실행했고 크래시는 관찰되지 않았다. AAOS 에뮬레이터의 DVR endpoint는 제공되지 않아 DVR 영상 업로드는 재현할 수 없었다.
+- 로컬 APK: `releases/P4-Files-v1.55.apk` (8,102,087 bytes, SHA-256 `7D19E38A88734437EF429D76CD8B930AF21E04588584BDA377B3AEE111272670`), `releases/P4-Files-phone-v1.55.apk` (8,109,175 bytes, SHA-256 `9C7F0FF4D69348A146575C74D10377563F937EC25524F3E3265C054CA1D37C13`). APK는 로컬 산출물이다.
+
 2026-11-13 · Drive 토큰 복구 / v1.54
 
 - 차량 화면에서 DVR 응답이 `normal`인데 Drive 대용량 업로드가 `TOKEN_ERROR: Bad Request`로 끝나고, 폰 상태가 갱신되지 않는 사례를 확인했다. 코드상 토큰 갱신 응답의 `error` 값을 버려 `error_description=Bad Request`만 보였고, 거부된 refresh token도 `connected`로 취급해 재로그인 경로가 막힐 수 있었다. 실제 Google OAuth error code는 다음 차량 로그 확인 전까지 확정하지 않는다.
