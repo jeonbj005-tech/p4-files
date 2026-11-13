@@ -1,5 +1,17 @@
 # P4 Files 개발 현황
 
+2026-11-13 · Polestar 4 디스플레이 기준화 및 반응형 UI / v1.57
+
+- 초기 AVD 캡처에는 P4 Files 대신 P4 Sound가 표시돼 있었고, 기존 MainActivity는 방향·화면 크기 변경을 Manifest에서 받으면서 현재 화면을 다시 구성하지 않았다. UI는 Kotlin 네이티브 View이며 고정 스마트폰 폭은 찾지 못했다.
+- 별도 AAOS API 33 AVD `P4DisplayAAOS1920x1200_TEMP160`을 구성했다. 패널 기준은 1920×1200/16:10/15.4인치다. AVD 160dpi는 임시 테스트 프로파일이다. 기존 AVD는 삭제하지 않았다.
+- MainActivity는 API 30 이상에서 현재 `WindowMetrics` 폭으로 차량·와이드 레이아웃을 선택하고, 구성 변경 시 기존 화면을 재배치한다. 시스템 바 인셋, 콘텐츠 가시 영역, 화면·레이아웃·호환성 제약 및 세로 스크롤 크기를 `P4DisplayMetrics` 로그로 기록한다. 소스 Manifest 선언과 기존 기능은 변경하지 않았다.
+- PolDock v1.3.17 16개 권한 기준을 원본 Manifest와 v1.57 병합 APK에서 대조했다. Media3는 `ACCESS_NETWORK_STATE`, WorkManager는 `WAKE_LOCK`·`RECEIVE_BOOT_COMPLETED`, AndroidX Core는 앱 전용 서명 보호 receiver 권한을 추가한다. 앱 선언, 의존성 병합, AVD 승인, 실차 OEM 승인 상태를 구분했으며 실차 권한 승인과 정확한 호환성 확대 여부는 미검증이다.
+- 검증: 차량·폰 각 25개 Kotlin 테스트, 두 flavor Lint·APK assemble 통과. 한글 작업경로의 Gradle worker가 테스트 클래스를 로드하지 않아 ASCII `R:\` 드라이브 별칭에서 Gradle 테스트를 실행했다. Python 화면 검증기 5개 테스트도 통과했다.
+- AAOS AVD 기준 결과: 패널 1920×1200, AVD 테스트 밀도 160dpi, 오버라이드 없음. 앱 창 1920×1200, 시스템 인셋 상/하 76/96px, 콘텐츠 가시영역 1920×1028px, vehicle/wide 레이아웃 선택, 잘린 접근성 노드 0개, 유의미한 세로 넘침 없음. 기준 이미지 비교와 차이 수치는 진단 보고서에 저장했다.
+- 좁은 창 스트레스 검사: AVD 오버라이드 1280×800@320dpi(임시 값)에서 앱 창 폭 640dp, vehicle=true, wide=false, 콘텐츠 세로 스크롤 뷰포트 114.5dp로 전환했고 잘린 노드는 없었다. 실차 프로파일이 아니다.
+- `releases/P4-Files-v1.57.apk` (8,105,583 bytes, SHA-256 `806E1D0DCA62CBF15616A3A9FF1427B6A248D8FE44C8F7E212DA16E2DD880194`), 폰 APK (8,112,639 bytes, SHA-256 `71A3B57B6FD6D5764992488B128FD7E697D5E1A29455D360A49620DF35E37352`)를 로컬 생성했다. 공개 Release에는 올리지 않았다.
+- 남은 실차 확인: 실제 논리 DPI·창/인셋·호환성 확대, 터치 간격·스크롤, OEM 권한 승인, DVR 스트림/Drive 연동. Android 공개 앱 API가 프레임워크 내부 호환성 확대 상태를 직접 제공하지 않아 시스템 덤프에 신호가 없으면 미확인으로 남긴다.
+
 2026-11-13 · DVR 업로드 실패 지점 표시 / v1.56
 
 - 실차 사진에는 `RUNNING · 36% · unexpected end of stream`가 함께 보인다. 현재 v1.55 코드에서는 Worker 시작과 진행 체크포인트에서 오류 문구를 비우므로, 사진이 v1.55보다 오래된 설치본인지 또는 같은 task의 예전 작업이 겹쳤는지는 화면만으로 확정할 수 없다.

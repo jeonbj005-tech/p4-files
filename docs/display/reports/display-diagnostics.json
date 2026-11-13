@@ -1,0 +1,118 @@
+{
+  "capturedAt": "2026-11-13T05:25:40+00:00",
+  "serial": "emulator-5558",
+  "package": "com.polestar4.drivefilemanager",
+  "appVersion": "1.57",
+  "reference": {
+    "panelResolutionPx": "1920x1200",
+    "aspectRatio": "16:10",
+    "diagonalInches": 15.4,
+    "realVehicleDpi": "unverified",
+    "realVehicleAppWindow": "unverified"
+  },
+  "display": {
+    "physicalSizePx": "1920x1200",
+    "sizeOverridePx": null,
+    "effectiveSizePx": "1920x1200",
+    "wmBaseDensityDpi": "160",
+    "wmDensityOverrideDpi": null,
+    "effectiveWmDensityDpi": "160",
+    "appLogicalDensityDpi": 160,
+    "orientation": 2
+  },
+  "screenshot": {
+    "path": "C:\\Users\\bjjeon\\Documents\\ChatGPT\\폴스타4 대쉬캠\\p4-drive-file-manager\\docs\\display\\reports\\display-current.png",
+    "widthPx": 1920,
+    "heightPx": 1200
+  },
+  "appWindowMetrics": {
+    "package": "com.polestar4.drivefilemanager",
+    "activity": "MainActivity",
+    "apiLevel": 33,
+    "windowBoundsPx": {
+      "left": 0,
+      "top": 0,
+      "right": 1920,
+      "bottom": 1200
+    },
+    "systemBarsInsetsPx": {
+      "left": 0,
+      "top": 76,
+      "right": 0,
+      "bottom": 96
+    },
+    "contentVisible": true,
+    "contentBoundsPx": {
+      "left": 0,
+      "top": 76,
+      "right": 1920,
+      "bottom": 1104
+    },
+    "contentWidthPx": 1920,
+    "contentHeightPx": 1028,
+    "bodyScrollRangePx": 828,
+    "bodyScrollExtentPx": 824,
+    "bodyScrollYpx": 0,
+    "densityDpi": 160,
+    "density": 1,
+    "configWidthDp": 1920,
+    "windowWidthDp": 1920,
+    "smallestWidthDp": 1200,
+    "orientation": 2,
+    "automotiveFeature": true,
+    "vehicleLayout": true,
+    "wideLayout": true,
+    "multiWindow": false,
+    "supportsLargeScreens": true,
+    "resizeableForScreens": true,
+    "compatibleWidthLimitDp": 0,
+    "largestWidthLimitDp": 0,
+    "compatibilityWidthLimitExceeded": false,
+    "targetSdk": 35,
+    "displayId": 0
+  },
+  "systemDisplayDumpAvailable": true,
+  "windowDumpAvailable": true,
+  "compatibility": {
+    "supportsLargeScreens": true,
+    "resizeableForScreens": true,
+    "compatibleWidthLimitDp": 0,
+    "largestWidthLimitDp": 0,
+    "widthLimitExceeded": false,
+    "systemDumpSignals": [],
+    "exactRuntimeScalingState": "unavailable from public app API"
+  },
+  "accessibility": {
+    "visibleNodeCount": 115,
+    "clippedVisibleNodes": []
+  },
+  "layout": {
+    "automotiveFeature": true,
+    "vehicleLayout": true,
+    "wideLayout": true,
+    "bodyScrollOverflow": false,
+    "bodyScrollRangePx": 828,
+    "bodyScrollExtentPx": 824,
+    "bodyScrollViewportDp": 824.0
+  },
+  "knownAvdDvrErrorDismissed": true,
+  "baselineComparison": {
+    "available": true,
+    "sameDimensions": true,
+    "meanAbsoluteDifference": 0.09,
+    "comparison": "C:\\Users\\bjjeon\\Documents\\ChatGPT\\폴스타4 대쉬캠\\p4-drive-file-manager\\docs\\display\\reports\\display-comparison.png"
+  },
+  "checks": {
+    "physicalResolutionRead": true,
+    "physicalResolutionMatches1920x1200Reference": true,
+    "wmDensityRead": true,
+    "appLogicalDensityRead": true,
+    "screenshotMatchesEffectiveDisplay": true,
+    "appWindowMetricsRead": true,
+    "contentAreaMeasured": true,
+    "vehicleLayoutSelected": true,
+    "compatibilityConstraintsMeasured": true,
+    "noVisibleNodeClipping": true,
+    "verticalScrollViewportAtLeast48dpWhenNeeded": true
+  }
+}

@@ -1,0 +1,113 @@
+{
+  "capturedAt": "2026-11-13T05:20:15+00:00",
+  "serial": "emulator-5558",
+  "package": "com.polestar4.drivefilemanager",
+  "appVersion": "1.57",
+  "reference": {
+    "panelResolutionPx": "1920x1200",
+    "aspectRatio": "16:10",
+    "diagonalInches": 15.4,
+    "realVehicleDpi": "unverified",
+    "realVehicleAppWindow": "unverified"
+  },
+  "display": {
+    "physicalSizePx": "1920x1200",
+    "sizeOverridePx": "1280x800",
+    "effectiveSizePx": "1280x800",
+    "wmBaseDensityDpi": "160",
+    "wmDensityOverrideDpi": "320",
+    "effectiveWmDensityDpi": "320",
+    "appLogicalDensityDpi": 320,
+    "orientation": 2
+  },
+  "screenshot": {
+    "path": "docs\\display\\reports\\narrow-stress\\display-current.png",
+    "widthPx": 1280,
+    "heightPx": 800
+  },
+  "appWindowMetrics": {
+    "package": "com.polestar4.drivefilemanager",
+    "activity": "MainActivity",
+    "apiLevel": 33,
+    "windowBoundsPx": {
+      "left": 0,
+      "top": 0,
+      "right": 1280,
+      "bottom": 800
+    },
+    "systemBarsInsetsPx": {
+      "left": 0,
+      "top": 76,
+      "right": 0,
+      "bottom": 96
+    },
+    "contentVisible": true,
+    "contentBoundsPx": {
+      "left": 0,
+      "top": 76,
+      "right": 1280,
+      "bottom": 704
+    },
+    "contentWidthPx": 1280,
+    "contentHeightPx": 628,
+    "bodyScrollRangePx": 1524,
+    "bodyScrollExtentPx": 229,
+    "bodyScrollYpx": 0,
+    "densityDpi": 320,
+    "density": 2,
+    "configWidthDp": 640,
+    "windowWidthDp": 640,
+    "smallestWidthDp": 400,
+    "orientation": 2,
+    "automotiveFeature": true,
+    "vehicleLayout": true,
+    "wideLayout": false,
+    "multiWindow": false,
+    "supportsLargeScreens": true,
+    "resizeableForScreens": true,
+    "compatibleWidthLimitDp": 0,
+    "largestWidthLimitDp": 0,
+    "compatibilityWidthLimitExceeded": false,
+    "targetSdk": 35,
+    "displayId": 0
+  },
+  "systemDisplayDumpAvailable": true,
+  "windowDumpAvailable": true,
+  "compatibility": {
+    "supportsLargeScreens": true,
+    "resizeableForScreens": true,
+    "compatibleWidthLimitDp": 0,
+    "largestWidthLimitDp": 0,
+    "widthLimitExceeded": false,
+    "systemDumpSignals": [],
+    "exactRuntimeScalingState": "unavailable from public app API"
+  },
+  "accessibility": {
+    "visibleNodeCount": 27,
+    "clippedVisibleNodes": []
+  },
+  "layout": {
+    "automotiveFeature": true,
+    "vehicleLayout": true,
+    "wideLayout": false,
+    "bodyScrollOverflow": true,
+    "bodyScrollRangePx": 1524,
+    "bodyScrollExtentPx": 229,
+    "bodyScrollViewportDp": 114.5
+  },
+  "knownAvdDvrErrorDismissed": false,
+  "baselineComparison": null,
+  "checks": {
+    "physicalResolutionRead": true,
+    "physicalResolutionMatches1920x1200Reference": true,
+    "wmDensityRead": true,
+    "appLogicalDensityRead": true,
+    "screenshotMatchesEffectiveDisplay": true,
+    "appWindowMetricsRead": true,
+    "contentAreaMeasured": true,
+    "vehicleLayoutSelected": true,
+    "compatibilityConstraintsMeasured": true,
+    "noVisibleNodeClipping": true,
+    "verticalScrollViewportAtLeast48dpWhenNeeded": true
+  }
+}

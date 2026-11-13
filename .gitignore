@@ -1,6 +1,7 @@
 # Android / Gradle build output
 .gradle/
 .kotlin/
+__pycache__/
 **/build/
 local.properties
 

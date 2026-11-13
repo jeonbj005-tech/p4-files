@@ -5,7 +5,9 @@ import android.animation.AnimatorSet
 import android.animation.ObjectAnimator
 import android.content.*
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.graphics.Color
+import android.graphics.Rect
 import android.graphics.Typeface
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -55,6 +57,7 @@ class MainActivity:Activity(){
     private var vehicleAuthDialog:AlertDialog?=null
     private lateinit var body:LinearLayout
     private lateinit var bodyScroll:ScrollView
+    private lateinit var rootView:LinearLayout
     private lateinit var title:TextView
     private lateinit var subtitle:TextView
     private lateinit var state:TextView
@@ -107,7 +110,9 @@ class MainActivity:Activity(){
     private fun panel(color:Int)=GradientDrawable().apply{setColor(color);cornerRadius=dp(18).toFloat();setStroke(dp(1),Color.argb(24,190,215,242))}
     private fun accentPanel(radius:Int=18)=GradientDrawable(GradientDrawable.Orientation.TL_BR,intArrayOf(Color.rgb(27,126,208),Color.rgb(28,183,214))).apply{cornerRadius=dp(radius).toFloat()}
     private fun caption(value:String){subtitle.text=value;subtitle.visibility=if(value.isBlank())View.GONE else View.VISIBLE}
-    private fun carLayout()=packageManager.hasSystemFeature("android.hardware.type.automotive")||(resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE&&resources.configuration.screenWidthDp>=600)
+    private fun windowWidthDp()=DisplayLayout.widthDp(if(Build.VERSION.SDK_INT>=30)windowManager.currentWindowMetrics.bounds.width() else -1,resources.displayMetrics.density,resources.configuration.screenWidthDp)
+    private fun carLayout()=DisplayLayout.isVehicleLayout(packageManager.hasSystemFeature("android.hardware.type.automotive"),resources.configuration.orientation==Configuration.ORIENTATION_LANDSCAPE,windowWidthDp())
+    private fun wideLayout()=DisplayLayout.isWideLayout(resources.configuration.orientation==Configuration.ORIENTATION_LANDSCAPE,windowWidthDp())
     private fun button(s:String,primary:Boolean=false,click:()->Unit)=Button(this).apply{
         text=s;isAllCaps=false;textSize=if(carLayout())17f else 14f;setTypeface(null,Typeface.BOLD);letterSpacing=.01f
         setTextColor(Color.WHITE);setPadding(dp(if(carLayout())18 else 14),0,dp(if(carLayout())18 else 14),0)
@@ -118,19 +123,61 @@ class MainActivity:Activity(){
     }
     override fun onCreate(b:Bundle?){super.onCreate(b);if(api.connected&&!api.vehicleMode)api.logout();window.statusBarColor=bg;window.navigationBarColor=bg;layout();restoreSavedStorage();if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),90);showDashcam(false);handler.postDelayed({checkAutomaticAppUpdate()},5_000)}
     private fun layout(){
-        val root=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(18),dp(10),dp(18),dp(10));background=GradientDrawable(GradientDrawable.Orientation.TL_BR,intArrayOf(Color.rgb(12,20,33),bg,Color.rgb(9,15,25)))}
-        root.setOnApplyWindowInsetsListener { view,insets -> view.setPadding(dp(18)+insets.systemWindowInsetLeft,dp(10)+insets.systemWindowInsetTop,dp(18)+insets.systemWindowInsetRight,dp(10)+insets.systemWindowInsetBottom);insets }
+        rootView=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(18),dp(10),dp(18),dp(10));background=GradientDrawable(GradientDrawable.Orientation.TL_BR,intArrayOf(Color.rgb(12,20,33),bg,Color.rgb(9,15,25)))}
+        rootView.setOnApplyWindowInsetsListener { view,insets -> view.setPadding(dp(18)+insets.systemWindowInsetLeft,dp(10)+insets.systemWindowInsetTop,dp(18)+insets.systemWindowInsetRight,dp(10)+insets.systemWindowInsetBottom);insets }
         val header=LinearLayout(this).apply{gravity=Gravity.CENTER_VERTICAL}
         header.addView(button("←"){back()},LinearLayout.LayoutParams(dp(48),dp(44)).apply{rightMargin=dp(10)})
         title=text("P4 FILES",if(carLayout())34f else 25f).apply{setTypeface(null,Typeface.BOLD);letterSpacing=.04f;gravity=Gravity.CENTER_VERTICAL};header.addView(title,LinearLayout.LayoutParams(0,dp(if(carLayout())60 else 48),1f))
-        header.addView(button("HOME"){home()});root.addView(header)
-        subtitle=text("",if(carLayout())17f else 12f,muted);subtitle.setPadding(dp(2),dp(3),0,dp(if(carLayout())14 else 10));root.addView(subtitle)
-        actions=LinearLayout(this).apply{dividerDrawable=android.graphics.drawable.ColorDrawable(Color.TRANSPARENT);showDividers=LinearLayout.SHOW_DIVIDER_MIDDLE;dividerPadding=dp(4)};root.addView(HorizontalScrollView(this).apply{addView(actions);isHorizontalScrollBarEnabled=false})
+        header.addView(button("HOME"){home()});rootView.addView(header)
+        subtitle=text("",if(carLayout())17f else 12f,muted);subtitle.setPadding(dp(2),dp(3),0,dp(if(carLayout())14 else 10));rootView.addView(subtitle)
+        actions=LinearLayout(this).apply{dividerDrawable=android.graphics.drawable.ColorDrawable(Color.TRANSPARENT);showDividers=LinearLayout.SHOW_DIVIDER_MIDDLE;dividerPadding=dp(4)};rootView.addView(HorizontalScrollView(this).apply{addView(actions);isHorizontalScrollBarEnabled=false})
         body=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL}
-        bodyScroll=ScrollView(this).apply{addView(body);isFillViewport=true;clipToPadding=false};root.addView(bodyScroll,LinearLayout.LayoutParams(-1,0,1f))
-        progress=ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal).apply{isIndeterminate=true;visibility=View.GONE};root.addView(progress,LinearLayout.LayoutParams(-1,dp(4)))
-        state=text("준비됨",if(carLayout())20f else 11f,muted).apply{setPadding(dp(if(carLayout())18 else 12),dp(if(carLayout())12 else 7),dp(if(carLayout())18 else 12),dp(if(carLayout())12 else 7));background=panel(surface)};root.addView(state,LinearLayout.LayoutParams(-1,-2).apply{topMargin=dp(if(carLayout())10 else 6)})
-        setContentView(root)
+        bodyScroll=ScrollView(this).apply{addView(body);isFillViewport=true;clipToPadding=false};rootView.addView(bodyScroll,LinearLayout.LayoutParams(-1,0,1f))
+        progress=ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal).apply{isIndeterminate=true;visibility=View.GONE};rootView.addView(progress,LinearLayout.LayoutParams(-1,dp(4)))
+        state=text("준비됨",if(carLayout())20f else 11f,muted).apply{setPadding(dp(if(carLayout())18 else 12),dp(if(carLayout())12 else 7),dp(if(carLayout())18 else 12),dp(if(carLayout())12 else 7));background=panel(surface)};rootView.addView(state,LinearLayout.LayoutParams(-1,-2).apply{topMargin=dp(if(carLayout())10 else 6)})
+        setContentView(rootView)
+        rootView.post { recordDisplayMetrics() }
+    }
+    private fun recordDisplayMetrics(){
+        val bounds=if(Build.VERSION.SDK_INT>=30)windowManager.currentWindowMetrics.bounds else Rect().apply{window.decorView.getWindowVisibleDisplayFrame(this)}
+        val insets=if(Build.VERSION.SDK_INT>=30){val value=windowManager.currentWindowMetrics.windowInsets.getInsets(WindowInsets.Type.systemBars());intArrayOf(value.left,value.top,value.right,value.bottom)}else window.decorView.rootWindowInsets?.let{intArrayOf(it.systemWindowInsetLeft,it.systemWindowInsetTop,it.systemWindowInsetRight,it.systemWindowInsetBottom)}?:intArrayOf(0,0,0,0)
+        val visible=Rect();val hasVisibleBounds=rootView.getGlobalVisibleRect(visible)
+        val compatibilityWidthLimit=applicationInfo.compatibleWidthLimitDp
+        val report=JSONObject()
+            .put("package",packageName).put("activity","MainActivity").put("apiLevel",Build.VERSION.SDK_INT)
+            .put("windowBoundsPx",JSONObject().put("left",bounds.left).put("top",bounds.top).put("right",bounds.right).put("bottom",bounds.bottom))
+            .put("systemBarsInsetsPx",JSONObject().put("left",insets[0]).put("top",insets[1]).put("right",insets[2]).put("bottom",insets[3]))
+            .put("contentVisible",hasVisibleBounds).put("contentBoundsPx",JSONObject().put("left",visible.left).put("top",visible.top).put("right",visible.right).put("bottom",visible.bottom))
+            .put("contentWidthPx",rootView.width).put("contentHeightPx",rootView.height)
+            .put("bodyScrollRangePx",bodyScroll.getChildAt(0)?.height?:0).put("bodyScrollExtentPx",bodyScroll.height).put("bodyScrollYpx",bodyScroll.scrollY)
+            .put("densityDpi",resources.displayMetrics.densityDpi).put("density",resources.displayMetrics.density)
+            .put("configWidthDp",resources.configuration.screenWidthDp).put("windowWidthDp",windowWidthDp())
+            .put("smallestWidthDp",resources.configuration.smallestScreenWidthDp).put("orientation",resources.configuration.orientation)
+            .put("automotiveFeature",packageManager.hasSystemFeature("android.hardware.type.automotive"))
+            .put("vehicleLayout",carLayout()).put("wideLayout",wideLayout()).put("multiWindow",isInMultiWindowMode)
+            .put("supportsLargeScreens",(applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_SUPPORTS_LARGE_SCREENS)!=0)
+            .put("resizeableForScreens",(applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_RESIZEABLE_FOR_SCREENS)!=0)
+            .put("compatibleWidthLimitDp",compatibilityWidthLimit).put("largestWidthLimitDp",applicationInfo.largestWidthLimitDp)
+            .put("compatibilityWidthLimitExceeded",compatibilityWidthLimit>0&&windowWidthDp()>compatibilityWidthLimit)
+            .put("targetSdk",applicationInfo.targetSdkVersion).put("displayId",window.decorView.display?.displayId ?: -1)
+        Log.i("P4DisplayMetrics",report.toString())
+    }
+    override fun onConfigurationChanged(newConfig:Configuration){
+        super.onConfigurationChanged(newConfig)
+        if(!::body.isInitialized)return
+        when(mode){
+            "home"->home()
+            "dashcam"->renderDashcam(dashcamItems)
+            "queue"->renderQueue()
+            "favorites"->showFavorites()
+            "recent"->showRecent()
+            "downloads"->downloads()
+            "dual"->if(wideLayout())showDualPane()else home()
+            "drive"->showDrive()
+            "local"->showLocal()
+            else->home()
+        }
+        rootView.post{recordDisplayMetrics()}
     }
     private fun card(icon:String,name:String,detail:String,click:()->Unit){
         val row=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(dp(20),dp(18),dp(20),dp(18));background=panel(surface);setOnClickListener{if(!busy)click()}}
@@ -153,7 +200,7 @@ class MainActivity:Activity(){
     private fun section(s:String){body.addView(text(s.uppercase(),if(carLayout())14f else 11f,muted).apply{letterSpacing=.12f;setTypeface(null,Typeface.BOLD);setPadding(dp(4),dp(16),0,dp(10))})}
     private fun home(){mode="home";selectionMode=false;selectedDrive.clear();selectedLocal.clear();title.text="P4 FILES";caption("차량과 클라우드 파일을 한곳에서");body.removeAllViews();actions.removeAllViews()
         actions.addView(button("대시캠"){showDashcam()},LinearLayout.LayoutParams(-2,dp(42)).apply{rightMargin=dp(6)});actions.addView(button("전송 대기열"){showQueue()},LinearLayout.LayoutParams(-2,dp(42)).apply{rightMargin=dp(6)});actions.addView(button("즐겨찾기"){showFavorites()},LinearLayout.LayoutParams(-2,dp(42)).apply{rightMargin=dp(6)});actions.addView(button("최근 항목"){showRecent()},LinearLayout.LayoutParams(-2,dp(42)).apply{rightMargin=dp(6)});actions.addView(button("인증 진단"){showDiagnostics()},LinearLayout.LayoutParams(-2,dp(42)))
-        if(resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE&&resources.configuration.screenWidthDp>=700){showDualPane();return}
+        if(wideLayout()){showDualPane();return}
         section("기기 저장공간")
         card("▣","USB / 내장 저장소",localPath.firstOrNull()?.let{"연결됨 · ${it.name?:"선택한 저장소"}"}?:"최초 한 번만 시스템에서 폴더 선택"){openSavedStorage()}
         card("↓","다운로드한 파일","Drive에서 받은 파일 열기"){downloads()}
@@ -291,7 +338,7 @@ class MainActivity:Activity(){
         actions.addView(button("캐시 초기화"){confirmDashcamCacheReset()},LinearLayout.LayoutParams(-2,dp(if(carLayout())56 else 48)).apply{rightMargin=dp(8)})
         actions.addView(button("업데이트"){checkAppUpdate()},LinearLayout.LayoutParams(-2,dp(if(carLayout())56 else 48)).apply{rightMargin=dp(8)})
         actions.addView(button("썸네일 새로고침"){requestDashcamThumbnails(true)},LinearLayout.LayoutParams(-2,dp(if(carLayout())56 else 48)))
-        val landscape=resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        val landscape=wideLayout()
         if(firstDashcamIntro&&!landscape)body.addView(dashcamIntro(),LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(10)})
         val holder=LinearLayout(this).apply{orientation=if(landscape)LinearLayout.HORIZONTAL else LinearLayout.VERTICAL}
         val calendarPane=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(8),dp(8),dp(18),dp(6));background=panel(Color.argb(35,29,43,60))}
@@ -755,7 +802,7 @@ class MainActivity:Activity(){
     }
     private fun openSavedStorage(){
         if(localPath.isEmpty()&&!restoreSavedStorage()){chooseFolder();return}
-        if(resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE&&resources.configuration.screenWidthDp>=700)showDualPane()else showLocal()
+        if(wideLayout())showDualPane()else showLocal()
     }
     private fun chooseFolder(){
         val intent=Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
@@ -933,7 +980,7 @@ class MainActivity:Activity(){
             return
         }
         if(c!=RESULT_OK||d==null){if(r==76){pendingUpdateSource=null;pendingUpdateName=null;state.text="업데이트 저장 취소"};return}
-        when(r){70->{val u=d.data?:return;try{contentResolver.takePersistableUriPermission(u,Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)}catch(_:SecurityException){};val dir=DocumentFile.fromTreeUri(this,u)?:return;storagePrefs().edit().putString("tree_uri",u.toString()).apply();localPath.clear();localPath.add(dir);if(resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE&&resources.configuration.screenWidthDp>=700)showDualPane()else showLocal()}
+        when(r){70->{val u=d.data?:return;try{contentResolver.takePersistableUriPermission(u,Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)}catch(_:SecurityException){};val dir=DocumentFile.fromTreeUri(this,u)?:return;storagePrefs().edit().putString("tree_uri",u.toString()).apply();localPath.clear();localPath.add(dir);if(wideLayout())showDualPane()else showLocal()}
             71,72->{val uris=d.clipData?.let{clip->(0 until clip.itemCount).map{clip.getItemAt(it).uri}}?:listOfNotNull(d.data);if(r==72||mode=="drive"||uris.size>1)uploadFiles(uris)else uris.firstOrNull()?.let{localActions(it,"선택한 파일",contentResolver.getType(it)?:"application/octet-stream")}}
             73->{val f=pendingDownload?:return;val uri=d.data?:return;pendingDownload=null;task("파일 저장 중"){(contentResolver.openOutputStream(uri)?:throw java.io.IOException("저장 파일을 열 수 없습니다.")).use{api.download(f.id,it){n->update("${bytes(n)} 저장 중")}};update("저장 완료: ${f.name}")}}
             75->{val f=pendingDashcam?:return;val uri=d.data?:return;pendingDashcam=null;task("대시캠 저장 중"){dashcamApi.withFileList("save-to-selected-location"){(contentResolver.openOutputStream(uri)?:throw java.io.IOException("저장 파일을 열 수 없습니다.")).use{out->dashcamApi.download(f,out){n->update("${bytes(n)} 저장 중 · ${f.name}")}}};update("대시캠 저장 완료: ${f.name}")}}
