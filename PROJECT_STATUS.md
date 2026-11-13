@@ -6,7 +6,7 @@
 - v1.56은 원본 연결/읽기 오류와 Google Drive 전송/응답 오류에 단계 접두어를 붙이고, `RETRYING`/`FAILED`에서만 마지막 오류를 표시한다.
 - 검증: 차량·폰 Kotlin 컴파일, 두 flavor Lint와 APK assemble 통과. Gradle Test executor는 생성된 테스트 클래스를 `ClassNotFoundException`으로 찾지 못했지만, 두 variant classpath로 JUnitCore를 직접 실행해 각각 21개 테스트 통과. 두 APK를 AAOS API 33 및 Android API 34 에뮬레이터에 설치하고 각각 `MainActivity`/`PhoneStatusActivity`를 전면 실행했다. DVR endpoint는 없어 실차 원본 스트림 재현 불가.
 - v1.56 / versionCode 66 차량 APK: 8,303,029 bytes, SHA-256 `2FFB6BDF23750265D7470B68CE5AE9970C2F09C71AF92B0BEA1784C84305CE4B`; 폰 APK: 8,317,637 bytes, SHA-256 `09E485BF6EF09A295501437BE3FD2783E22C3B26A3C991964A7AEDE99754D5D9`. 두 APK의 서명 인증서 SHA-256은 기존과 같은 `7D48CDBF4BD2898796294E6AB8A9626353375AE6A43EB98A661207079DA9B756`.
-- [GitHub Release v1.56](https://github.com/jeonbj005-tech/p4-files/releases/tag/v1.56)에 차량 APK, 폰 APK, update.json 업로드. 공개 latest manifest의 버전·차량 APK 크기·SHA-256과 Release asset을 대조했다. 차량 updater가 새 manifest를 보는 것까지 확인했으며, 실차에서 설치 확인 화면을 거쳐 설치하는 단계는 별도다.
+- [GitHub Release v1.56](https://github.com/jeonbj005-tech/p4-files/releases/tag/v1.56)에 차량 APK, 폰 APK, update.json 업로드. 공개 latest manifest의 버전·차량 APK 크기·SHA-256과 Release asset을 대조했다. AAOS 에뮬레이터에 v1.55 설치 후 앱에서 업데이트 확인을 눌러 v1.56 다운로드 안내가 뜨는 것까지 확인했다. 다운로드 및 시스템 설치 승인 단계는 누르지 않았고, 실차 업데이트 설치는 별도다.
 
 2026-11-13 · DVR 업로드 스트림 재시도 / v1.55
 
