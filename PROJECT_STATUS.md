@@ -10,6 +10,7 @@
 - 차량 APK `releases/P4-Files-v1.58.apk`: 8,105,851 bytes, SHA-256 `91F32C0D7460C3EFDBE87DA6D32EDCE98BA170FA23F0AE69CD58CBB7CC497357`. 폰 APK `releases/P4-Files-phone-v1.58.apk`: 8,113,775 bytes, SHA-256 `1E50F0439C278C2F96A6C222EAF7FCB8B46C2ED8240C3E486A7D2E51E661F289`. 두 APK 서명 SHA-256은 기존 `7D48CDBF4BD2898796294E6AB8A9626353375AE6A43EB98A661207079DA9B756`와 일치하며 패키지·versionCode 68·minSdk 26을 확인했다.
 - 제한: 폰 앱은 현재도 상태 JSON만 읽으며 DVR 영상/목록을 폰으로 보내지 않는다. 업로드 완주, 속도 향상, 현재 계정의 차량-폰 왕복은 실차 미검증.
 - 배포: v1.58 APK는 로컬 빌드 산출물이다. 공개 릴리스와 releases/update.json은 갱신하지 않았다. 차량 APK에는 로컬 OAuth 설정값이 포함되므로 공개 업로드 전 별도 검토가 필요하다.
+- 에뮬레이터 재현: AAOS 13 차량 및 Android 14 폰에 v1.58 설치. 폰은 Drive 상태 파일을 읽었지만 00:28:55의 오래된 기록을 표시했고, 차량 앱은 Drive 미연결 상태였다. 차량 OAuth 승인이 없어 새 상태 왕복은 아직 미검증이다. 현재 깨우기 테스트는 5분만 기록을 게시한다.
 
 2026-11-13 · Polestar 4 디스플레이 기준화 및 반응형 UI / v1.57
 
