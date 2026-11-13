@@ -6,6 +6,7 @@
 - **확인된 코드 결함:** `SocketTimeoutException`은 `InterruptedIOException` 하위 형식인데 기존 Worker가 이를 사용자의 일시정지로 처리해 자동 복구를 끝낼 수 있었다. 다른 I/O 오류도 Worker가 먼저 `FAILED`로 표시하면서 WorkManager 재시도를 예약해, 대기 중 UI에 수동 재시작을 노출했다. 재시작은 같은 DVR/Drive 업로드 task ID에 대해 고유 작업으로 제한되지 않았다.
 - **수정(v1.55):** 명시적인 취소·일시정지만 `PAUSED`/`CANCELED`로 끝낸다. I/O 실패는 기존 Drive resumable session을 조회해 서버가 승인한 위치부터 최대 8회 재시도하고, 대기 중 `재시도 대기`를 표시한다. task별 unique work와 재시도 상태 액션으로 중복 재시작을 막고, 바이트가 더 진행되면 지난 오류를 지운다.
 - **수정(v1.56):** 오류에 `차량 DVR 원본 연결/읽기` 또는 `Google Drive 청크 전송/응답` 단계를 표시한다. 큐에서 마지막 오류는 `재시도 대기` 또는 `실패`일 때만 노출해 실행 상태의 오래된 메시지를 감춘다.
+- **배포:** [GitHub Release v1.56](https://github.com/jeonbj005-tech/p4-files/releases/tag/v1.56). 공개 latest manifest와 차량 APK의 크기·SHA-256을 확인했다.
 - **미확정:** v1.56의 단계별 오류를 받아야 실제 끊김이 DVR 원본인지 Drive 연결인지 구분할 수 있다. 실차 DVR Range 동작, 녹화 영향, 280MB 영상 완주도 아직 재검증하지 않았다.
 - 두 flavor 컴파일·Lint·APK assemble 통과. Gradle Test executor는 test class를 찾지 못했지만 각 variant classpath에서 JUnitCore로 21개씩 통과했다. 차량 에뮬레이터에는 DVR 서비스를 제공하지 않으므로 실차 검증을 대신하지 않는다.
 
