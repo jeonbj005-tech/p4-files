@@ -1,5 +1,12 @@
 # P4 Files 개발 현황
 
+2026-11-13 · DVR 업로드 실패 지점 표시 / v1.56
+
+- 실차 사진에는 `RUNNING · 36% · unexpected end of stream`가 함께 보인다. 현재 v1.55 코드에서는 Worker 시작과 진행 체크포인트에서 오류 문구를 비우므로, 사진이 v1.55보다 오래된 설치본인지 또는 같은 task의 예전 작업이 겹쳤는지는 화면만으로 확정할 수 없다.
+- v1.56은 원본 연결/읽기 오류와 Google Drive 전송/응답 오류에 단계 접두어를 붙이고, `RETRYING`/`FAILED`에서만 마지막 오류를 표시한다.
+- 검증: 차량·폰 Kotlin 컴파일, 두 flavor Lint와 APK assemble 통과. Gradle Test executor는 생성된 테스트 클래스를 `ClassNotFoundException`으로 찾지 못했지만, 두 variant classpath로 JUnitCore를 직접 실행해 각각 21개 테스트 통과. 두 APK를 AAOS API 33 및 Android API 34 에뮬레이터에 설치하고 각각 `MainActivity`/`PhoneStatusActivity`를 전면 실행했다. DVR endpoint는 없어 실차 원본 스트림 재현 불가.
+- v1.56 / versionCode 66 차량 APK: 8,303,029 bytes, SHA-256 `2FFB6BDF23750265D7470B68CE5AE9970C2F09C71AF92B0BEA1784C84305CE4B`; 폰 APK: 8,317,637 bytes, SHA-256 `09E485BF6EF09A295501437BE3FD2783E22C3B26A3C991964A7AEDE99754D5D9`. 두 APK의 서명 인증서 SHA-256은 기존과 같은 `7D48CDBF4BD2898796294E6AB8A9626353375AE6A43EB98A661207079DA9B756`.
+
 2026-11-13 · DVR 업로드 스트림 재시도 / v1.55
 
 - 사용자 실차 화면: 같은 DVR 영상이 업로드 중 18% 부근에서 실패했다고 보고했고, 다음 사진에는 36% `RUNNING`과 `unexpected end of stream` 문구가 함께 보인다. 에뮬레이터의 280MiB 합성 파일은 Drive 업로드에 성공했으나 실차 DVR 원본 스트림은 이와 별도다.

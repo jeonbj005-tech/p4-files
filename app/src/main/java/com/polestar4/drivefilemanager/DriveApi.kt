@@ -154,46 +154,48 @@ class DriveApi(private val ctx: Context) {
     fun uploadResumable(uri:Uri,name:String,mime:String,parent:String,length:Long,savedSession:String,onSession:(String)->Unit,progress:(Long)->Unit){
         uploadResumableFrom({offset->ctx.contentResolver.openInputStream(uri)?.apply{skipFully(this,offset)}},name,mime,parent,length,savedSession,onSession,progress)
     }
+    private fun uploadFailure(stage:String,error:IOException):IOException =
+        if(error is AuthFailure)error else IOException("$stage: ${error.message?:error.javaClass.simpleName}",error)
     fun uploadResumableFrom(openSource:(Long)->InputStream?,name:String,mime:String,parent:String,length:Long,savedSession:String,onSession:(String)->Unit,progress:(Long)->Unit){
         val knownLength=length>0
         var session=savedSession;var offset=0L
         if(session.isNotBlank()){
             val probe=request(session,"PUT")
-            try{probe.doOutput=true;probe.setFixedLengthStreamingMode(0);probe.setRequestProperty("Content-Range","bytes */${if(knownLength)length else "*"}");val code=probe.responseCode
+            try{probe.doOutput=true;probe.setFixedLengthStreamingMode(0);probe.setRequestProperty("Content-Range","bytes */${if(knownLength)length else "*"}");val code=try{probe.responseCode}catch(e:IOException){throw uploadFailure("Drive 업로드 재개 확인",e)}
                 if(code==308)offset=uploadedOffset(probe)
                 else if(code in 200..299){progress(if(knownLength)length else uploadedOffset(probe));return}
-                else if(code==404){session="";offset=0}else check(response(probe))
+                else if(code==404){session="";offset=0}else try{check(response(probe))}catch(e:IOException){throw uploadFailure("Google Drive 재개 응답 읽기",e)}
             }finally{probe.disconnect()}
         }
         if(session.isBlank()){
             val init=request("https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable","POST")
-            session=try{init.doOutput=true;init.setRequestProperty("Content-Type","application/json");init.setRequestProperty("X-Upload-Content-Type",mime);if(knownLength)init.setRequestProperty("X-Upload-Content-Length",length.toString());init.outputStream.use{it.write(JSONObject().put("name",name).put("parents",JSONArray().put(parent)).toString().toByteArray())};if(init.responseCode !in 200..299)check(response(init));init.getHeaderField("Location")?:throw IOException("업로드 세션 생성 실패")}finally{init.disconnect()}
+            session=try{try{init.doOutput=true;init.setRequestProperty("Content-Type","application/json");init.setRequestProperty("X-Upload-Content-Type",mime);if(knownLength)init.setRequestProperty("X-Upload-Content-Length",length.toString());init.outputStream.use{it.write(JSONObject().put("name",name).put("parents",JSONArray().put(parent)).toString().toByteArray())};if(init.responseCode !in 200..299)check(response(init));init.getHeaderField("Location")?:throw IOException("업로드 세션 생성 실패")}catch(e:IOException){throw uploadFailure("Google Drive 업로드 세션 생성",e)}}finally{init.disconnect()}
             onSession(session)
         }
         if(knownLength&&offset>length)throw IOException("Drive 업로드 위치가 파일 크기를 초과했습니다.")
-        val input=openSource(offset)?:throw IOException("파일을 열 수 없습니다.")
+        val input=try{openSource(offset)}catch(e:IOException){throw uploadFailure("차량 DVR 원본 연결",e)}?:throw IOException("파일을 열 수 없습니다.")
         input.use{raw->val stream=PushbackInputStream(raw,1);progress(offset);val chunk=ByteArray(4*1024*1024)
             while(true){
                 val wanted=if(knownLength)minOf(chunk.size.toLong(),length-offset).toInt() else chunk.size
                 if(wanted==0)throw IOException("Drive 업로드가 완료되지 않았습니다.")
                 var count=0
-                while(count<wanted){val n=stream.read(chunk,count,wanted-count);if(n<0)break;count+=n}
+                while(count<wanted){val n=try{stream.read(chunk,count,wanted-count)}catch(e:IOException){throw uploadFailure("차량 DVR 원본 읽기",e)};if(n<0)break;count+=n}
                 if(count==0)throw EOFException(if(knownLength)"예상보다 파일이 짧습니다." else "빈 파일은 업로드할 수 없습니다.")
                 if(knownLength&&count<wanted)throw EOFException("예상보다 파일이 짧습니다.")
-                val last=if(knownLength)offset+count==length else if(count<wanted)true else {val next=stream.read();if(next<0)true else{stream.unread(next);false}}
+                val last=if(knownLength)offset+count==length else if(count<wanted)true else {val next=try{stream.read()}catch(e:IOException){throw uploadFailure("차량 DVR 원본 읽기",e)};if(next<0)true else{stream.unread(next);false}}
                 var accepted=0;var noProgress=0
                 while(accepted<count){
                     val start=offset+accepted;val end=offset+count-1;val c=request(session,"PUT")
                     try{
                         c.doOutput=true;c.setFixedLengthStreamingMode(count-accepted);c.setRequestProperty("Content-Type",mime);c.setRequestProperty("Content-Range",driveUploadContentRange(start,end+1,length,last))
-                        c.outputStream.use{it.write(chunk,accepted,count-accepted)}
-                        val code=c.responseCode
+                        try{c.outputStream.use{it.write(chunk,accepted,count-accepted)}}catch(e:IOException){throw uploadFailure("Google Drive 청크 전송",e)}
+                        val code=try{c.responseCode}catch(e:IOException){throw uploadFailure("Google Drive 응답 수신",e)}
                         if(code==308){val next=uploadedOffset(c);when(uploadChunkProgress(next,start,offset+count)){
                             ChunkProgress.NONE->{if(++noProgress>2)throw IOException("Drive 업로드 위치가 진행되지 않았습니다.")}
                             ChunkProgress.ADVANCED->{accepted=(next-offset).toInt();noProgress=0;progress(next)}
                         }}
                         else if(code in 200..299){if(!last)throw IOException("Drive가 파일 끝보다 먼저 업로드를 완료했습니다.");progress(if(knownLength)length else offset+count);return}
-                        else check(response(c))
+                        else try{check(response(c))}catch(e:IOException){throw uploadFailure("Google Drive 응답 읽기",e)}
                     }finally{c.disconnect()}
                 }
                 offset+=count

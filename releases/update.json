@@ -1,11 +1,11 @@
 {
   "packageName": "com.polestar4.drivefilemanager",
-  "versionCode": 57,
-  "versionName": "1.47",
+  "versionCode": 66,
+  "versionName": "1.56",
   "minimumSdk": 26,
-  "apkUrl": "https://github.com/jeonbj005-tech/p4-files/releases/download/v1.47/P4-Files-v1.47.apk",
-  "sha256": "23eef9bb3052dec4c538c0db94f2e7be5da74559511ffef796a9eefe8be0f417",
-  "size": 8288503,
+  "apkUrl": "https://github.com/jeonbj005-tech/p4-files/releases/download/v1.56/P4-Files-v1.56.apk",
+  "sha256": "2ffb6bdf23750265d7470b68ce5ae9970c2f09c71af92b0bea1784c84305ce4b",
+  "size": 8303029,
   "signingCertificateSha256": "7d48cdbf4bd2898796294e6ab8a9626353375ae6a43eb98a661207079da9b756",
-  "notes": "잠금 해제 뒤 DVR 응답을 확인하는 5분 백그라운드 진단 추가"
+  "notes": "DVR 업로드 오류를 차량 원본 스트림과 Google Drive 전송 단계로 구분"
 }
